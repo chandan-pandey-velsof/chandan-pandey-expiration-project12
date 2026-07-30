@@ -1,0 +1,2413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EaseIP · Intelligent PTA Calculator</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+/* ══════════════════════════════════════════════
+   LAYOUT  — Left sidebar(56px tabs + 280px panel) | Center | Right sidebar(56px tabs + 280px panel)
+   Grid: [tab-L][panel-L][center][tab-R][panel-R]
+   Sidebar panels slide in/out via CSS transitions
+══════════════════════════════════════════════ */
+html,body{height:100%;margin:0;font-family:'Lato',sans-serif;background:var(--surface);}
+.dash-layout{display:grid;grid-template-rows:56px 1fr 34px;height:100vh;overflow:hidden;}
+
+/* 5-column grid: left-tabs | left-panel | center | right-tabs | right-panel */
+.panels{
+  display:grid;
+  grid-template-columns: 48px 0px 1fr 48px 0px;
+  overflow:hidden;
+  transition: grid-template-columns .28s ease;
+}
+.panels.left-open  { grid-template-columns: 48px 272px 1fr 48px 0px; }
+.panels.right-open { grid-template-columns: 48px 0px 1fr 48px 272px; }
+.panels.both-open  { grid-template-columns: 48px 272px 1fr 48px 272px; }
+
+/* ── Tab strips (always visible on sides) ── */
+.tab-strip{
+  display:flex;flex-direction:column;align-items:center;
+  padding-top:12px;gap:4px;background:#fff;overflow:hidden;flex-shrink:0;
+  border-right:1px solid #e8e3d8;
+}
+.tab-strip.right-strip{border-right:none;border-left:1px solid #e8e3d8;}
+.st-tab{
+  writing-mode:vertical-rl;transform:rotate(180deg);
+  font-size:.64rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:#bbb;cursor:pointer;padding:14px 10px;border-radius:6px;
+  transition:all .18s;white-space:nowrap;user-select:none;
+}
+.st-tab:hover{color:var(--gold-dim);background:#faf7ee;}
+.st-tab.active{color:var(--gold-dim);background:#fff8ea;border-left:2px solid var(--gold);}
+.tab-strip.right-strip .st-tab.active{border-left:none;border-right:2px solid var(--gold);}
+
+/* ── Slide panels ── */
+.slide-panel{
+  overflow:hidden;display:flex;flex-direction:column;
+  border-right:1px solid #e8e3d8;background:#fff;
+  width:272px;
+}
+.slide-panel.right-slide{border-right:none;border-left:1px solid #e8e3d8;}
+.sp-head{
+  background:var(--dark);color:var(--gold);
+  padding:9px 13px;font-family:'Rajdhani',sans-serif;
+  font-size:.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  flex-shrink:0;border-bottom:2px solid var(--gold);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sp-head .sp-close{background:none;border:none;color:#666;cursor:pointer;font-size:.95rem;padding:1px 5px;border-radius:3px;}
+.sp-head .sp-close:hover{color:#fff;background:rgba(255,255,255,.1);}
+.sp-body{flex:1;overflow-y:auto;}
+
+/* ── Center panel ── */
+.center-col{display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.center-head{
+  background:var(--dark);color:var(--gold);
+  padding:9px 14px;font-family:'Rajdhani',sans-serif;
+  font-size:.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  flex-shrink:0;border-bottom:2px solid var(--gold);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.center-body{flex:1;overflow-y:auto;background:var(--surface);}
+
+/* ════════════════════════════════
+   TOP NAV (custom — replaces default navbar for dashboard)
+════════════════════════════════ */
+.dash-nav{
+  display:grid;grid-template-columns:auto 1fr auto;
+  align-items:center;background:var(--dark);
+  border-bottom:3px solid var(--gold);padding:0 16px 0 0;
+  box-shadow:0 3px 20px rgba(0,0,0,.4);z-index:200;
+}
+.nav-brand{
+  display:flex;align-items:center;gap:10px;
+  padding:0 14px;cursor:pointer;text-decoration:none;height:56px;
+  border-right:1px solid rgba(197,160,89,.15);
+}
+.nav-logo-box{background:#fff;border-radius:7px;padding:4px 8px;display:flex;align-items:center;border:1px solid rgba(197,160,89,.25);}
+.nav-logo-box img{height:30px;width:auto;}
+.nav-brand-text{color:var(--gold);font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;letter-spacing:1.5px;display:block;}
+.nav-brand-sub{color:#555;font-size:.58rem;letter-spacing:.8px;display:block;}
+
+/* ── Center nav — breadcrumb/search hint ── */
+.nav-center{padding:0 14px;display:flex;align-items:center;}
+.nav-hint{font-size:.72rem;color:#444;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;}
+.nav-hint span{color:var(--gold-dim);}
+
+/* ── Right nav ── */
+.nav-right{display:flex;align-items:center;gap:2px;}
+/* Dropdown menu */
+.nav-menu{position:relative;display:inline-flex;}
+.nav-menu-btn{
+  color:#bbb;font-size:.78rem;padding:7px 12px;border-radius:5px;
+  border:none;background:transparent;cursor:pointer;
+  font-family:'Lato',sans-serif;font-weight:600;
+  display:flex;align-items:center;gap:5px;transition:all .18s;white-space:nowrap;
+}
+.nav-menu-btn:hover,.nav-menu-btn.open{color:var(--gold);background:rgba(197,160,89,.1);}
+.nav-menu-btn .chevron{font-size:.6rem;transition:transform .2s;}
+.nav-menu-btn.open .chevron{transform:rotate(180deg);}
+.nav-dropdown{
+  position:absolute;top:calc(100% + 4px);right:0;
+  background:#fff;border:1px solid #e8e3d8;border-radius:8px;
+  box-shadow:0 8px 32px rgba(0,0,0,.14);min-width:180px;
+  display:none;z-index:500;overflow:hidden;
+}
+.nav-dropdown.open{display:block;animation:fadeIn .15s ease;}
+.nd-item{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 14px;font-size:.8rem;color:#333;
+  cursor:pointer;transition:background .12s;text-decoration:none;
+  border-bottom:1px solid #f5f2ea;
+}
+.nd-item:last-child{border-bottom:none;}
+.nd-item:hover{background:#faf7ee;color:var(--gold-dim);}
+.nd-item .ni-icon{font-size:.9rem;width:18px;text-align:center;flex-shrink:0;}
+.nd-sep{height:1px;background:#f0ede6;margin:4px 0;}
+.nav-user-chip{
+  background:#3a3a3a;border-radius:20px;padding:3px 10px;
+  font-size:.68rem;color:#888;font-weight:700;letter-spacing:.5px;
+  display:flex;align-items:center;gap:6px;margin:0 4px;
+}
+.nav-user-chip .role-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+
+/* ════════════════════════════════
+   RAW DATES PANEL (left)
+════════════════════════════════ */
+.rd-section{
+  padding:4px 0 0;border-bottom:1px solid #f2efe8;
+}
+.rd-sec-hdr{
+  padding:6px 11px 4px;font-size:.6rem;letter-spacing:2px;
+  color:var(--gold-dim);font-weight:700;text-transform:uppercase;
+  background:#f9f6ef;border-bottom:1px solid #f0ede5;
+}
+.rd-row{
+  display:flex;align-items:flex-start;gap:7px;
+  padding:5px 11px;border-bottom:1px solid #faf7f0;
+}
+.rd-row:last-child{border-bottom:none;}
+.rd-lbl{font-size:.6rem;color:#bbb;text-transform:uppercase;letter-spacing:.4px;font-weight:700;min-width:84px;flex-shrink:0;padding-top:1px;}
+.rd-val{font-family:'IBM Plex Mono',monospace;font-size:.74rem;color:#333;font-weight:500;line-height:1.4;}
+.rd-val.hl{color:var(--gold-dim);font-weight:700;}
+.rd-val.rv{color:var(--red);font-weight:700;}
+.rd-val.gv{color:var(--green);font-weight:700;}
+.rd-empty{padding:20px 14px;text-align:center;color:#ccc;font-size:.75rem;line-height:1.6;}
+
+/* ════════════════════════════════
+   HISTORY (right panel)
+════════════════════════════════ */
+.hi-item{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  padding:9px 12px;border-bottom:1px solid #f2efe8;cursor:pointer;
+  transition:background .12s;gap:5px;
+}
+.hi-item:hover{background:#faf7ee;}
+.hi-item.active{background:#fff8ea;border-left:3px solid var(--gold);}
+.hi-app{font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:var(--dark);}
+.hi-date{font-size:.65rem;color:#bbb;margin-top:1px;}
+.hi-title{font-size:.67rem;color:#888;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:168px;}
+.hi-del{background:none;border:none;color:#ddd;cursor:pointer;font-size:.8rem;padding:2px 4px;border-radius:3px;flex-shrink:0;}
+.hi-del:hover{color:var(--red);background:#fdeaea;}
+.show-more{
+  display:block;width:100%;padding:9px;border:none;
+  background:transparent;color:var(--gold-dim);font-size:.72rem;font-weight:700;
+  letter-spacing:.5px;cursor:pointer;text-align:center;border-top:1px solid #f2efe8;
+}
+.show-more:hover{background:#faf7ee;}
+
+/* ════════════════════════════════
+   GLOSSARY (right panel)
+════════════════════════════════ */
+.gl-item{border-bottom:1px solid #f2efe8;overflow:hidden;}
+.gl-term{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 13px;cursor:pointer;transition:background .12s;
+  font-family:'Rajdhani',sans-serif;font-size:.92rem;font-weight:700;
+  color:var(--dark);gap:8px;
+}
+.gl-term:hover{background:#faf7ee;}
+.gl-term.open{background:#fff8ea;color:var(--gold-dim);}
+.gl-icon{
+  width:20px;height:20px;border-radius:4px;background:var(--dark);
+  color:var(--gold);display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:900;flex-shrink:0;transition:transform .18s;
+}
+.gl-term-label{flex:1;min-width:0;}
+.gl-body{display:none;padding:10px 13px 12px;background:#fafaf7;}
+.gl-body.open{display:block;animation:fadeIn .2s ease;}
+.gl-para{font-size:.74rem;color:#444;line-height:1.6;margin-bottom:7px;}
+.gl-para:last-child{margin-bottom:0;}
+.gl-note{background:#fff8e8;border-left:3px solid var(--gold);padding:6px 9px;font-size:.72rem;color:#7a4d00;border-radius:0 4px 4px 0;margin-top:6px;line-height:1.5;}
+
+/* ════════════════════════════════
+   CENTER — INPUT ZONE
+════════════════════════════════ */
+.input-zone{
+  padding:10px 14px;background:#fff;border-bottom:1px solid #e8e3d8;flex-shrink:0;
+  display:flex;flex-direction:column;gap:0;
+}
+.app-input-wrap{
+  display:flex;gap:8px;background:linear-gradient(135deg,#f5f2eb,#edeae0);
+  border-radius:9px;padding:10px 12px;
+  border:1.5px solid rgba(197,160,89,.35);
+}
+.app-input{
+  flex:1;padding:9px 15px;border:2px solid rgba(197,160,89,.5);border-radius:7px;
+  background:#fff;color:var(--dark);
+  font-family:'IBM Plex Mono',monospace;font-size:.92rem;letter-spacing:1px;
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.06);
+}
+.app-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,160,89,.2),inset 0 1px 4px rgba(0,0,0,.06);}
+.app-input::placeholder{color:#b0a88a;}
+.prog-wrap{height:2px;background:#e8e3d8;overflow:hidden;flex-shrink:0;}
+.prog-bar{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));width:0%;transition:width .4s;}
+
+/* ════════════════════════════════
+   CENTER — RESULT AREA
+════════════════════════════════ */
+.result-pad{padding:12px 14px 80px;}
+
+/* Meta strip */
+.meta-strip{display:grid;grid-template-columns:auto 1fr auto;gap:9px;margin-bottom:12px;}
+.mc{background:#fff;border:1px solid #e8e3d8;border-radius:7px;padding:8px 11px;}
+.mc .mc-l{font-size:.58rem;letter-spacing:1px;color:#ccc;text-transform:uppercase;font-weight:700;margin-bottom:2px;}
+.mc .mc-v{font-size:.8rem;font-weight:700;color:var(--dark);font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* Summary cards */
+.sum-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;}
+.sc{border-radius:9px;padding:14px 16px;}
+.sc-dark{background:var(--dark);border:2px solid var(--gold);}
+.sc-blue{background:#fff;border:2px solid var(--blue);}
+.sc-green{background:#fff;border:2px solid var(--green);}
+.sc .sc-l{font-size:.58rem;letter-spacing:2px;text-transform:uppercase;opacity:.55;font-weight:700;margin-bottom:3px;}
+.sc .sc-v{font-family:'Rajdhani',sans-serif;font-size:1.9rem;font-weight:700;line-height:1;}
+.sc-dark .sc-l{color:#bbb;}.sc-dark .sc-v{color:var(--gold);}
+.sc-blue .sc-l{color:var(--blue);}.sc-blue .sc-v{color:var(--blue);}
+.sc-green .sc-l{color:var(--green);}.sc-green .sc-v{color:var(--green);}
+.sc .sc-s{font-size:.64rem;opacity:.45;margin-top:2px;}
+
+/* Comparison banner */
+.cmp-banner{border-radius:7px;padding:10px 14px;text-align:center;font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:12px;}
+.cmp-ok{background:#eaf5ee;color:#1e6b3e;border:2px solid var(--green);}
+.cmp-diff{background:#fdeaea;color:#a02020;border:2px solid var(--red);}
+
+/* Accordions */
+.acc{background:#fff;border-radius:8px;border:1px solid #e8e3d8;margin-bottom:7px;overflow:hidden;}
+.acc-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 13px;cursor:pointer;user-select:none;
+  transition:background .14s;border-bottom:2px solid transparent;
+}
+.acc-hdr:hover{background:#fafaf7;}
+.acc-hdr.open{background:#f8f4ec;border-bottom-color:rgba(197,160,89,.4);}
+.acc-left{display:flex;align-items:center;gap:9px;}
+.acc-ico{
+  width:20px;height:20px;border-radius:4px;background:var(--dark);
+  color:var(--gold);display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:900;flex-shrink:0;
+}
+/* Answer title — bold, larger */
+.acc-title{font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:800;color:var(--dark);letter-spacing:.3px;}
+.acc-badge{font-family:'IBM Plex Mono',monospace;font-size:.72rem;padding:2px 9px;border-radius:4px;font-weight:700;white-space:nowrap;}
+.acc-badge.has{background:#fdeaea;color:var(--red);}
+.acc-badge.none{background:#eaf5ee;color:var(--green);}
+.acc-badge.neu{background:#e8f0fb;color:var(--blue);}
+.acc-body{display:none;padding:11px 13px;border-top:1px solid #f2efe8;}
+.acc-body.open{display:block;animation:fadeIn .2s ease;}
+
+/* Forensic block — answer bold+large, detail smaller */
+.fb{background:#fafaf7;border:1px solid #e8e3d8;border-left:4px solid var(--gold-dim);border-radius:7px;padding:11px 13px;margin-bottom:8px;}
+.fb.fb-d{border-left-color:var(--red);background:#fff8f8;}
+.fb.fb-ok{border-left-color:var(--green);}
+.fb-rule{font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:800;color:var(--gold-dim);margin-bottom:4px;}
+.fb-ans{font-size:.88rem;font-weight:700;color:var(--dark);line-height:1.5;margin-bottom:3px;} /* ANSWER — bold, larger */
+.fb-det{font-size:.76rem;color:#555;line-height:1.55;} /* Detail — smaller */
+.fb-chip{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:3px 9px;border-radius:4px;font-size:.72rem;font-weight:700;}
+.fb-chip.bad{background:#fdeaea;color:var(--red);}
+.fb-chip.ok{background:#eaf5ee;color:var(--green);}
+.fb-chip.info{background:#e8f0fb;color:var(--blue);}
+
+/* Totals table */
+.ttbl{width:100%;border-collapse:collapse;}
+.ttbl td{padding:7px 11px;font-size:.83rem;}
+.ttbl .tl{color:#666;}.ttbl .tv{font-family:'IBM Plex Mono',monospace;text-align:right;font-weight:700;}
+.ttbl tr.sub td{color:var(--red);}
+.ttbl tr.tot td{border-top:2px solid var(--dark);font-weight:800;font-size:1rem;}
+.ttbl tr.tot .tv{color:var(--gold-dim);font-size:1.1rem;}
+
+/* Compare grid */
+.cmp-grid{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #e8e3d8;border-radius:7px;overflow:hidden;}
+.cmp-col{padding:12px;}.cmp-col.ours{background:#faf7ee;border-right:1px solid #e8e3d8;}.cmp-col.theirs{background:#f0f5ff;}
+.cmp-col h4{font-family:'Rajdhani',sans-serif;font-size:.74rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;}
+.cmp-col.ours h4{color:var(--gold-dim);}.cmp-col.theirs h4{color:var(--blue);}
+.cmp-row{display:flex;justify-content:space-between;padding:3px 0;font-size:.79rem;border-bottom:1px solid rgba(0,0,0,.04);}
+.cmp-row:last-child{border-bottom:none;}
+.cmp-row .cl{color:#888;}.cmp-row .cv{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+
+/* Hist event table */
+.htbl{width:100%;border-collapse:collapse;font-size:.72rem;}
+.htbl th{background:var(--dark);color:var(--gold);padding:6px 9px;font-size:.62rem;letter-spacing:1px;}
+.htbl td{padding:5px 9px;border-bottom:1px solid #f2efe8;vertical-align:top;}
+.htbl tr:hover td{background:#faf7ee;}
+.htbl .ad{color:var(--red);font-weight:700;}.htbl .ud{color:var(--blue);font-weight:700;}
+
+/* Maintenance table */
+.mtbl{width:100%;border-collapse:collapse;}
+.mtbl th{background:var(--dark);color:var(--gold);padding:7px 10px;font-size:.64rem;letter-spacing:1px;text-align:left;}
+.mtbl td{padding:8px 10px;border-bottom:1px solid #f2efe8;font-size:.77rem;}
+.mtbl tr:nth-child(odd) td{background:#fafaf7;}
+
+/* Timeline */
+.tl-row{display:flex;align-items:flex-start;gap:8px;padding:5px 10px;border-bottom:1px solid #f5f2ec;}
+.tl-date{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--gold-dim);min-width:84px;padding-top:2px;}
+.tl-role{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:20px;white-space:nowrap;min-width:76px;text-align:center;flex-shrink:0;}
+.rc{background:#3a2a0a;color:var(--gold);}
+.ra{background:#1a2a3a;color:#6bb3e8;}
+.rb{background:#1e2a1e;color:#6be8a0;}
+.rp{background:#2a1e1e;color:#e87070;}
+.rd2{background:#3a1e1e;color:#ff8080;}
+.rr{background:#2a2a1e;color:#e8c86b;}
+.tl-name{font-size:.77rem;font-weight:600;}
+.tl-note{font-size:.67rem;color:#888;margin-top:1px;}
+
+/* Overlap chip */
+.ov-chip{font-family:'IBM Plex Mono',monospace;font-size:.74rem;background:#fff8e8;padding:3px 8px;border-radius:4px;margin-bottom:3px;color:#7a4d00;display:inline-block;}
+
+/* ── Inline Manual Calculator (at bottom of results) ── */
+.inline-calc-trigger{
+  background:#fff;border:2px dashed #d8d4cc;border-radius:9px;
+  padding:13px 16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;
+  transition:all .2s;margin-top:4px;
+}
+.inline-calc-trigger:hover{border-color:var(--gold);background:#faf7ee;}
+.ict-left{display:flex;align-items:center;gap:10px;}
+.ict-icon{width:32px;height:32px;background:var(--dark);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+.ict-label{font-family:'Rajdhani',sans-serif;font-size:.92rem;font-weight:700;color:var(--dark);letter-spacing:.5px;}
+.ict-sub{font-size:.7rem;color:#aaa;margin-top:1px;}
+.ict-arrow{font-size:1.1rem;color:#ccc;transition:transform .2s;}
+.inline-calc-trigger.open .ict-arrow{transform:rotate(90deg);}
+.inline-calc-trigger.open{border-color:var(--gold);background:#fff8ea;border-style:solid;}
+
+.inline-calc-panel{display:none;background:#fff;border:1px solid #e8e3d8;border-radius:9px;padding:20px;margin-top:6px;}
+.inline-calc-panel.open{display:block;animation:fadeIn .25s ease;}
+.calc-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;}
+.cf label{display:block;font-size:.68rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;}
+.cf input{width:100%;padding:9px 11px;border:1.5px solid #e0dbd0;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:.84rem;background:#fafaf8;}
+.cf input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,160,89,.1);}
+.calc-result{background:linear-gradient(135deg,#1e2a3a,#152035);border:2px solid var(--blue);border-radius:9px;padding:14px;text-align:center;}
+.calc-result .cr-l{font-size:.6rem;letter-spacing:2px;color:#6bb3e8;margin-bottom:4px;font-weight:700;}
+.calc-result .cr-d{font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;color:#fff;}
+.calc-result .cr-s{font-size:.66rem;color:#6bb3e8;margin-top:2px;}
+.calc-maint-hdr{font-size:.68rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin:14px 0 7px;}
+
+/* ── Loading / empty / error states ── */
+.state-empty,.state-loading,.state-error{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 24px;text-align:center;}
+.state-empty .se-icon{font-size:2.8rem;margin-bottom:14px;}
+.state-empty .se-title{font-family:'Rajdhani',sans-serif;font-size:1.05rem;letter-spacing:2px;color:#bbb;margin-bottom:7px;}
+.state-empty .se-sub{font-size:.78rem;color:#aaa;max-width:280px;line-height:1.65;}
+.spinner{width:32px;height:32px;border-radius:50%;border:3px solid #e0dbd0;border-top-color:var(--gold);animation:spin .7s linear infinite;margin:0 auto 10px;}
+.prog-steps{display:flex;flex-direction:column;gap:3px;margin:12px auto 0;max-width:200px;text-align:left;}
+.ps{font-size:.75rem;color:#bbb;display:flex;align-items:center;gap:7px;padding:2px 0;}
+.ps-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.ps.done{color:var(--green);}.ps.active{color:var(--gold);font-weight:700;}
+
+/* ── Action bar ── */
+.action-bar{display:none;flex-shrink:0;padding:8px 14px;border-top:1px solid #e8e3d8;background:#fff;gap:8px;align-items:center;}
+
+/* ── Animations ── */
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fade-in{animation:fadeIn .25s ease forwards;}
+</style>
+</head>
+<body>
+<div class="dash-layout">
+
+<!-- ══ TOP NAV ══ -->
+<div class="dash-nav">
+  <!-- Brand -->
+  <a class="nav-brand" href="/" title="Home">
+    <div class="nav-logo-box">
+      <img src="{{ url_for('static', filename='logo_white.png') }}" alt="EaseIP"
+           onerror="this.src='{{ url_for('static', filename='logo.png') }}'">
+    </div>
+    <div>
+      <span class="nav-brand-text">EASEIP · Intelligent PTA Calculator</span>
+      <span class="nav-brand-sub">USPTO Patent Term Adjustment Platform</span>
+    </div>
+  </a>
+
+  <!-- Center hint -->
+  <div class="nav-center">
+    <div class="nav-hint" id="navHint">Enter application number → press <span>RUN FORENSIC</span></div>
+  </div>
+
+  <!-- Right controls -->
+  <div class="nav-right">
+    <!-- User chip -->
+    <div class="nav-user-chip">
+      <div class="role-dot" style="background:{% if role=='admin' %}var(--gold){% else %}#666{% endif %}"></div>
+      {{ username }}
+      <span style="font-size:.6rem;color:#555">·</span>
+      <span style="color:{% if role=='admin' %}var(--gold){% else %}#666{% endif %}">{{ role }}</span>
+    </div>
+
+    <!-- Expiration Tool toggle -->
+    <a href="/expiration" id="linkExpTool"
+       style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;
+              border:1px solid var(--gold);border-radius:5px;font-size:.7rem;font-weight:700;
+              color:var(--gold);text-decoration:none;letter-spacing:.5px;margin-right:4px"
+       title="Switch to Simple Expiration Date Tool">
+      📅 Expiration Tool
+    </a>
+
+    <!-- Account menu -->
+    <div class="nav-menu" id="menuAccount">
+      <button class="nav-menu-btn" onclick="toggleMenu('menuAccount')">
+        👤 Account <span class="chevron">▾</span>
+      </button>
+      <div class="nav-dropdown" id="dd-account">
+        <a class="nd-item" href="/"><span class="ni-icon">🏠</span> Home</a>
+        {% if role=='admin' %}
+        <div class="nd-sep"></div>
+        <a class="nd-item" href="{{ url_for('admin_manage') }}"><span class="ni-icon">⚙️</span> Admin Panel</a>
+        <a class="nd-item" href="{{ url_for('admin_manage') }}#users"><span class="ni-icon">👥</span> User Accounts</a>
+        <a class="nd-item" href="{{ url_for('api_settings_page') }}"><span class="ni-icon">🔌</span> API Settings</a>
+        {% endif %}
+        <div class="nd-sep"></div>
+        <a class="nd-item" href="{{ url_for('logout') }}"><span class="ni-icon">🚪</span> Sign Out</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 5-COLUMN PANELS ══ -->
+<div class="panels" id="panelsGrid">
+
+  <!-- ① LEFT TAB STRIP -->
+  <div class="tab-strip" id="leftTabs">
+    <div class="st-tab active" id="lt-rawdates" onclick="toggleLeft('rawdates')" title="Raw Dates &amp; Events">Dates &amp; Events</div>
+    <div class="st-tab" id="lt-documents" onclick="toggleLeft('documents')" title="Document History">Documents</div>
+    <div class="st-tab" id="lt-transactions" onclick="toggleLeft('transactions')" title="Transaction History">Transactions</div>
+  </div>
+
+  <!-- ② LEFT SLIDE PANEL -->
+  <div class="slide-panel" id="leftPanel">
+    <div class="sp-head">
+      <span id="leftPanelTitle">Raw Dates &amp; Events</span>
+      <button class="sp-close" onclick="closeLeft()">✕</button>
+    </div>
+    <!-- Dates & Events sub-panel -->
+    <div class="sp-body" id="rawDatesBody" style="display:flex;flex-direction:column;">
+      <div class="rd-empty">Run an analysis to see all extracted dates and events.</div>
+    </div>
+    <!-- Documents sub-panel -->
+    <div class="sp-body" id="docsBody" style="display:none;flex-direction:column;">
+      <div class="rd-empty" id="docsEmpty">Run an analysis to see document history.</div>
+    </div>
+    <!-- Transactions sub-panel -->
+    <div class="sp-body" id="transBody" style="display:none;flex-direction:column;">
+      <div class="rd-empty" id="transEmpty">Run an analysis to see transaction history.</div>
+    </div>
+  </div>
+
+  <!-- ③ CENTER COLUMN -->
+  <div class="center-col">
+    <div class="center-head">
+      <span>PTA Forensic Analysis</span>
+      <span id="centerBadge" style="font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:#666"></span>
+    </div>
+
+    <!-- Input bar -->
+    <div class="input-zone">
+      <!-- Search mode toggle -->
+      <div style="display:flex;gap:0;margin-bottom:6px;border-radius:6px;overflow:hidden;border:1.5px solid #c5a059;width:fit-content;align-self:flex-start">
+        <button id="modeAppBtn" onclick="setSearchMode('app')"
+          style="padding:5px 14px;font-size:.68rem;font-weight:700;letter-spacing:.8px;border:none;cursor:pointer;background:var(--gold);color:var(--dark);transition:all .18s">
+          App No.
+        </button>
+        <button id="modePatBtn" onclick="setSearchMode('patent')"
+          style="padding:5px 14px;font-size:.68rem;font-weight:700;letter-spacing:.8px;border:none;cursor:pointer;background:transparent;color:#c5a059;transition:all .18s">
+          Patent No.
+        </button>
+      </div>
+      <div class="app-input-wrap">
+        <input class="app-input" id="appInput" type="text"
+          placeholder="Application Number (e.g. 17/449,797)"
+          onkeydown="if(event.key==='Enter')runAnalysis()">
+        <button class="btn-gold" id="runBtn" onclick="runAnalysis()"
+          style="font-size:.84rem;padding:9px 18px;white-space:nowrap">
+          🔬 RUN FORENSIC
+        </button>
+      </div>
+      <div id="patentResolveNote" style="display:none;font-size:.67rem;color:#a08040;margin-top:4px;padding:3px 6px;background:#fff8e8;border-radius:4px;border-left:2px solid var(--gold)"></div>
+    </div>
+    <div class="prog-wrap"><div class="prog-bar" id="progBar"></div></div>
+
+    <!-- Body -->
+    <div class="center-body" id="centerBody">
+      <!-- Empty state -->
+      <div class="state-empty" id="stEmpty">
+        <div class="se-icon">⚖️</div>
+        <div class="se-title">INTELLIGENT PTA ANALYSIS</div>
+        <div class="se-sub">Enter a USPTO application number and press <strong>RUN FORENSIC</strong> to generate a complete A/B/C delay breakdown.</div>
+        <!-- Educational disclaimer box -->
+        <div style="margin-top:28px;max-width:460px;background:#fff;border-radius:10px;border:1.5px solid rgba(197,160,89,.3);overflow:hidden;text-align:left;box-shadow:0 2px 12px rgba(0,0,0,.06)">
+          <div style="background:var(--dark);color:var(--gold);padding:9px 16px;font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:2px;border-bottom:2px solid var(--gold)">
+            📋 EDUCATIONAL NOTICE &amp; DISCLAIMER
+          </div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:1rem;flex-shrink:0">📌</span>
+              <div style="font-size:.76rem;color:#444;line-height:1.6">
+                <strong style="color:var(--dark)">For educational purposes only.</strong> This tool provides a forensic estimate of Patent Term Adjustment (PTA) under 35 U.S.C. 154(b). It is not a legal determination and does not substitute for official USPTO records or qualified patent counsel.
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:1rem;flex-shrink:0">⚠️</span>
+              <div style="font-size:.76rem;color:#444;line-height:1.6">
+                <strong style="color:var(--dark)">PTA applies only to utility and plant patents</strong> filed on or after May 29, 2000 under 35 U.S.C. 154(b). Design patents are excluded. Results depend on the accuracy and completeness of USPTO PAIR data.
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:1rem;flex-shrink:0">🔬</span>
+              <div style="font-size:.76rem;color:#444;line-height:1.6">
+                <strong style="color:var(--dark)">Calculated PTA may differ from USPTO official PTA</strong> due to internal mailing rules, weekends/holidays, PTA petitions, or additional 37 CFR 1.704(c) categories not captured in public data. Always verify with the official patent record.
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:1rem;flex-shrink:0">💡</span>
+              <div style="font-size:.76rem;color:#444;line-height:1.6">
+                <strong style="color:var(--dark)">Maintenance fees</strong> are due at 3.5, 7.5, and 11.5 years after grant for utility patents. Failure to pay results in patent expiration. A 6-month grace period applies with surcharge.
+              </div>
+            </div>
+            <div style="border-top:1px solid #f0ede6;padding-top:10px;font-size:.7rem;color:#aaa;text-align:center">
+              © 2026 EaseIP Pvt Ltd · All calculations are estimates only · Not legal advice
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Loading -->
+      <div class="state-loading" id="stLoad" style="display:none">
+        <div class="spinner"></div>
+        <div style="color:#aaa;font-size:.8rem;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">ANALYZING...</div>
+        <div class="prog-steps">
+          <div class="ps" id="ps1"><div class="ps-dot"></div>Fetching USPTO data</div>
+          <div class="ps" id="ps2"><div class="ps-dot"></div>Extracting events</div>
+          <div class="ps" id="ps3"><div class="ps-dot"></div>Computing A-Delay</div>
+          <div class="ps" id="ps4"><div class="ps-dot"></div>Computing B/C-Delay</div>
+          <div class="ps" id="ps5"><div class="ps-dot"></div>Applicant delay analysis</div>
+          <div class="ps" id="ps6"><div class="ps-dot"></div>Finalizing report</div>
+        </div>
+      </div>
+      <!-- Error -->
+      <div style="display:none;padding:18px" id="stErr">
+        <div class="alert alert-error" id="errMsg"></div>
+      </div>
+      <!-- Result -->
+      <div id="resultPad" class="result-pad" style="display:none"></div>
+    </div>
+
+    <!-- Action bar — buttons moved to Downloads sidebar tab -->
+    <div class="action-bar" id="actionBar">
+      <span style="font-size:.72rem;color:#888;font-family:'Rajdhani',sans-serif;letter-spacing:.5px">
+        ✓ Analysis complete — use <strong style="color:var(--gold-dim)">Downloads</strong> tab on the right →
+      </span>
+      <div style="flex:1"></div>
+      <span id="abMeta" style="font-size:.7rem;color:#bbb;font-family:'IBM Plex Mono',monospace"></span>
+    </div>
+  </div>
+
+  <!-- ④ RIGHT TAB STRIP -->
+  <div class="tab-strip right-strip" id="rightTabs">
+    <div class="st-tab" id="rt-history"   onclick="toggleRight('history')"   title="Search History">History</div>
+    <div class="st-tab" id="rt-glossary"  onclick="toggleRight('glossary')"  title="Legal Glossary">Glossary</div>
+    <div class="st-tab" id="rt-downloads" onclick="toggleRight('downloads')" title="Downloads">Downloads</div>
+  </div>
+
+  <!-- ⑤ RIGHT SLIDE PANEL -->
+  <div class="slide-panel right-slide" id="rightPanel">
+    <!-- History section -->
+    <div id="rp-history" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+      <div class="sp-head">
+        <span>Search History</span>
+        <button class="sp-close" onclick="closeRight()">✕</button>
+      </div>
+      <div class="sp-body" id="histBody">
+        <div style="padding:18px;text-align:center;color:#ccc;font-size:.75rem">No searches yet.</div>
+      </div>
+    </div>
+    <!-- Glossary section -->
+    <div id="rp-glossary" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+      <div class="sp-head">
+        <span>Legal Glossary</span>
+        <button class="sp-close" onclick="closeRight()">✕</button>
+      </div>
+      <div class="sp-body" id="glossaryBody"></div>
+    </div>
+    <!-- Downloads section -->
+    <div id="rp-downloads" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+      <div class="sp-head">
+        <span>Downloads &amp; Export</span>
+        <button class="sp-close" onclick="closeRight()">✕</button>
+      </div>
+      <div class="sp-body">
+        <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+          <!-- Full Detail Report Print -->
+          <div style="background:#fafaf7;border:1px solid #e8e3d8;border-radius:8px;padding:14px">
+            <div style="font-size:.68rem;font-weight:700;letter-spacing:1px;color:#aaa;text-transform:uppercase;margin-bottom:8px">📄 Full Detail Report</div>
+            <p style="font-size:.74rem;color:#666;margin:0 0 10px;line-height:1.5">Print a complete forensic report including all delay reasoning, PTA timeline, TD info, and maintenance fees.</p>
+            <button id="dlReportBtn" onclick="printFullReport()"
+              style="width:100%;padding:9px;background:var(--dark);color:var(--gold);border:1.5px solid var(--gold);border-radius:7px;font-family:'Rajdhani',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:1px;cursor:pointer;opacity:.4;pointer-events:none;transition:all .2s"
+              title="Run an analysis first">
+              🖨 PRINT FULL DETAIL REPORT
+            </button>
+          </div>
+          <!-- Expiration Date Tool -->
+          <div style="background:#fafaf7;border:1px solid #e8e3d8;border-radius:8px;padding:14px">
+            <div style="font-size:.68rem;font-weight:700;letter-spacing:1px;color:#aaa;text-transform:uppercase;margin-bottom:8px">📅 Expiration Date Tool</div>
+            <p style="font-size:.74rem;color:#666;margin:0 0 10px;line-height:1.5">Open the Patent Expiration Date tool with maintenance fee schedule and terminal disclaimer detection.</p>
+            <a id="expToolLink" href="/expiration"
+              style="display:block;width:100%;padding:9px;background:#fff8ea;color:var(--gold-dim);border:1.5px solid var(--gold);border-radius:7px;font-family:'Rajdhani',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:1px;cursor:pointer;text-align:center;text-decoration:none;box-sizing:border-box">
+              📅 OPEN EXPIRATION TOOL
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /panels -->
+
+<!-- FOOTER -->
+<footer class="footer">© 2026 EaseIP Pvt Ltd. All Rights Reserved. &nbsp;·&nbsp; Intelligent PTA Calculator</footer>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   GLOSSARY DATA  (from Glossary.docx)
+══════════════════════════════════════════════ */
+const GLOSSARY = [
+  {
+    term: "Type (Patent Categories)",
+    paras: [
+      "Design patent applications protect the design embodied in or applied to an article of manufacture and not the article itself. The subject matter may relate to the configuration or shape of an article, to the surface ornamentation, or to a combination of both. Design is inseparable from the article to which it is applied. See Ex parte Cady (1916); In re Zahn, 617 F.2d 261 (CCPA 1980).",
+      "Plant patent applications protect a distinct and new variety of plant, including cultivated sports, mutants, hybrids, and newly found seedlings (other than tuber-propagated plants found in an uncultivated state), that is asexually reproduced. Asexually propagated plants are reproduced by means other than seeds (rooting of cuttings, layering, budding, grafting, inarching, etc.).",
+      "Utility patents protect the way an article is used and works — any new and useful process, machine, manufacture, or composition of matter, or improvements thereof. The USPTO's grant provides the patent owner the right to preclude others from making, using, offering to sell, or importing the patented invention within the United States without authority. See 35 U.S.C. 101."
+    ]
+  },
+  {
+    term: "Filing Date",
+    paras: [
+      "The filing date of a nonprovisional application under 35 USC 111(a) is the date on which the specification (35 USC 112), at least one claim (37 CFR 1.75), and any required drawing (37 CFR 1.81(a)) are filed at the USPTO. See 37 CFR 1.53(b). Applications may be original, continuation, divisional, continuation-in-part, or substitute applications.",
+      "For a PCT application entering national stage under 35 U.S.C. 371, the filing date is the date of the international filing, provided the requirements are met. The international filing date is accorded the earliest date on which the requirements under PCT Article 11(1) were satisfied. See 35 USC 363, 37 CFR 1.431."
+    ]
+  },
+  {
+    term: "Domestic Benefit",
+    paras: [
+      "For calculating the patent term expiration date, domestic benefit includes any claim of priority under 35 U.S.C. 120, 121, and 365(c). It does NOT include a priority claim of a provisional application filed under 35 USC 119(e)."
+    ]
+  },
+  {
+    term: "Effective Filing Date",
+    paras: [
+      "The effective filing date for patent term purposes is the date the application was filed in the United States, or — if it contains a specific reference to an earlier-filed application under 35 U.S.C. 120, 121, or 365(c) — that earlier date. For an international application, it is the date of filing of the international application.",
+      "A claim for foreign priority under 35 USC 119(a)-(d) and 365(b) is NOT considered in determining the effective filing date for patent term purposes. Similarly, domestic priority under 35 USC 119(e) (provisional applications) is NOT considered."
+    ]
+  },
+  {
+    term: "Patent Grant",
+    paras: [
+      "The grant date is the date a patent application becomes a U.S. patent and patent rights can be exercised. In the U.S., the grant date always falls on a Tuesday."
+    ]
+  },
+  {
+    term: "Patent Term Extensions (35 USC 154)",
+    paras: [
+      "Patent term extensions under former 35 U.S.C. 154(b) and 37 CFR 1.701 apply to utility and plant patents issuing on applications filed on or after June 8, 1995 but before May 29, 2000 (Uruguay Round Agreements Act). These extensions compensate for examination delay and may extend the patent term beyond the standard 20-year term under 35 USC 154(a)(2)."
+    ]
+  },
+  {
+    term: "Patent Term Adjustments (35 USC 154)",
+    paras: [
+      "Patent term adjustments (PTA) under 35 U.S.C. 154(b) and 37 CFR 1.702–1.705 apply to utility and plant patents issuing on applications filed on or after May 29, 2000 (Patent Term Guarantee Act of 1999). PTA compensates for USPTO delays during prosecution and may extend the patent term beyond the standard 20-year term under 35 USC 154(a)(2)."
+    ]
+  },
+  {
+    term: "Patent Term Extensions (35 USC 156)",
+    paras: [
+      "Patent Term Extension under 35 U.S.C. 156 compensates for time spent in pre-market regulatory review at the FDA or USDA for a product claimed in the patent. This right arises from the Drug Price Competition and Patent Term Restoration Act of 1984, Pub. L. No. 98-417 (Hatch-Waxman Act). See 35 U.S.C. 156, 271, 282."
+    ]
+  },
+  {
+    term: "Terminal Disclaimers",
+    paras: [
+      "A terminal disclaimer is a submission filed by the applicant or patent owner to disclaim or dedicate to the public the entire term or any terminal part of the term granted or to be granted. See 35 USC 253 and 37 CFR 1.321(b) and (c).",
+      "A terminal disclaimer is commonly filed to obviate judicially created double patenting. It must state that the disclaimer will run with any patent granted and be binding upon successors and assigns. A terminal disclaimer may cause the patent to expire earlier than it otherwise would.",
+      "NOTE: If an approved TD is on file disclaiming over a single, simple (no TDs of its own) co-pending parent application that subsequently was abandoned, the current application may be treated as having no TDs — an abandoned application has no patent term end date and therefore nothing to disclaim."
+    ],
+    note: true
+  },
+  {
+    term: "Maintenance Fee Payments",
+    paras: [
+      "Utility applications filed on or after May 12, 1980 require maintenance fees. Design and plant patents are exempt. Maintenance fees are due at 3.5, 7.5, and 11.5 years after grant. A surcharge applies for late payment within the 6-month grace period.",
+      "Failure to pay results in patent expiration. A patent owner may petition for revival within 2 years after the grace period (unintentional delay) or at any time during the patent term (unavoidable delay)."
+    ]
+  }
+];
+
+/* ══════════════════════════════════════════════
+   GLOBALS
+══════════════════════════════════════════════ */
+let currentResult = null;
+let activeAppNum  = null;
+let histAll       = [];
+let histShowAll   = false;
+let leftOpen      = true;   // start with dates panel open
+let rightOpen     = false;
+let currentLeft   = 'rawdates';
+let currentRight  = 'history';
+let secIdx        = 0;
+let progTimer     = null;
+let searchMode    = 'app';   // 'app' | 'patent'
+
+function setSearchMode(mode) {
+  searchMode = mode;
+  const appBtn = document.getElementById('modeAppBtn');
+  const patBtn = document.getElementById('modePatBtn');
+  if (mode === 'app') {
+    appBtn.style.background = 'var(--gold)'; appBtn.style.color = 'var(--dark)';
+    patBtn.style.background = 'transparent'; patBtn.style.color = '#c5a059';
+    document.getElementById('appInput').placeholder = 'Application Number (e.g. 17/449,797)';
+  } else {
+    patBtn.style.background = 'var(--gold)'; patBtn.style.color = 'var(--dark)';
+    appBtn.style.background = 'transparent'; appBtn.style.color = '#c5a059';
+    document.getElementById('appInput').placeholder = 'Patent Number (e.g. 10,123,456 or US10123456)';
+  }
+  document.getElementById('patentResolveNote').style.display = 'none';
+}
+
+// ─── Update Expiration Tool links with current ref + mode ────────────
+function updateExpToolLink() {
+  const v = document.getElementById('appInput').value.trim();
+  if (v) {
+    const modeParam = searchMode === 'patent' ? '&mode=pat' : '';
+    const url = `/expiration?q=${encodeURIComponent(v)}${modeParam}`;
+    document.getElementById('linkExpTool').href = url;
+    const dlLink = document.getElementById('expToolLink');
+    if (dlLink) dlLink.href = url;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  openLeft('rawdates');   // open dates panel by default
+  buildGlossary();
+  loadHistory();
+  const p = new URLSearchParams(location.search);
+  const q = p.get('q') || p.get('app');
+  if (q) { document.getElementById('appInput').value = q; runAnalysis(); }
+  document.getElementById('appInput').addEventListener('change', updateExpToolLink);
+});
+
+/* ══════════════════════════════════════════════
+   DROPDOWN MENUS
+══════════════════════════════════════════════ */
+function toggleMenu(menuId) {
+  const dd = document.getElementById('dd-' + menuId.replace('menu','').toLowerCase());
+  const btn = document.querySelector(`#${menuId} .nav-menu-btn`);
+  const isOpen = dd.classList.toggle('open');
+  btn.classList.toggle('open', isOpen);
+  // close other menus
+  document.querySelectorAll('.nav-dropdown').forEach(d => { if (d !== dd) d.classList.remove('open'); });
+  document.querySelectorAll('.nav-menu-btn').forEach(b => { if (b !== btn) b.classList.remove('open'); });
+}
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.nav-menu')) {
+    document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.nav-menu-btn').forEach(b => b.classList.remove('open'));
+  }
+});
+
+/* ══════════════════════════════════════════════
+   SIDEBAR LOGIC
+══════════════════════════════════════════════ */
+function updatePanelClasses() {
+  const grid = document.getElementById('panelsGrid');
+  grid.className = 'panels' + (leftOpen && rightOpen ? ' both-open' : leftOpen ? ' left-open' : rightOpen ? ' right-open' : '');
+}
+
+function openLeft(tab) {
+  leftOpen = true; currentLeft = tab;
+  document.querySelectorAll('#leftTabs .st-tab').forEach(t => t.classList.remove('active'));
+  const el = document.getElementById('lt-' + tab);
+  if (el) el.classList.add('active');
+  // Switch sub-panels
+  const panels = {
+    'rawdates':     {body: 'rawDatesBody',  title: 'Raw Dates &amp; Events'},
+    'documents':    {body: 'docsBody',      title: 'Document History'},
+    'transactions': {body: 'transBody',     title: 'Transaction History'},
+  };
+  Object.entries(panels).forEach(([key, cfg]) => {
+    const el = document.getElementById(cfg.body);
+    if (el) el.style.display = (key === tab) ? 'flex' : 'none';
+  });
+  const titleEl = document.getElementById('leftPanelTitle');
+  if (titleEl && panels[tab]) titleEl.innerHTML = panels[tab].title;
+  updatePanelClasses();
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeLeft(); closeFullPage(); } });
+
+function closeLeft() {
+  leftOpen = false;
+  document.querySelectorAll('#leftTabs .st-tab').forEach(t => t.classList.remove('active'));
+  updatePanelClasses();
+}
+function toggleLeft(tab) {
+  if (leftOpen && currentLeft === tab) closeLeft();
+  else openLeft(tab);
+}
+
+function openRight(tab) {
+  rightOpen = true; currentRight = tab;
+  document.querySelectorAll('#rightTabs .st-tab').forEach(t => t.classList.remove('active'));
+  const el = document.getElementById('rt-' + tab);
+  if (el) el.classList.add('active');
+  ['history','glossary','downloads'].forEach(t => {
+    const panel = document.getElementById('rp-' + t);
+    if (panel) { panel.style.display = (t===tab) ? 'flex' : 'none'; panel.style.flexDirection = 'column'; }
+  });
+  updatePanelClasses();
+}
+function closeRight() {
+  rightOpen = false;
+  document.querySelectorAll('#rightTabs .st-tab').forEach(t => t.classList.remove('active'));
+  updatePanelClasses();
+}
+function toggleRight(tab) {
+  if (rightOpen && currentRight === tab) closeRight();
+  else openRight(tab);
+}
+
+/* ══════════════════════════════════════════════
+   HISTORY
+══════════════════════════════════════════════ */
+async function loadHistory() {
+  const res = await fetch('/history');
+  histAll = await res.json();
+  renderHistory();
+}
+function renderHistory() {
+  const el = document.getElementById('histBody');
+  if (!histAll.length) {
+    el.innerHTML = '<div style="padding:18px;text-align:center;color:#ccc;font-size:.75rem">No searches yet.</div>';
+    return;
+  }
+  const show = histShowAll ? histAll : histAll.slice(0, 3);
+  let html = show.map((item, i) => `
+    <div class="hi-item ${item.app_num===activeAppNum?'active':''}" onclick="loadHistItem('${item.app_num}')">
+      <div style="flex:1;min-width:0">
+        <div class="hi-app">${item.app_num}</div>
+        <div class="hi-date">${item.date}</div>
+        ${item.title ? `<div class="hi-title">${item.title}</div>` : ''}
+      </div>
+      <button class="hi-del" onclick="event.stopPropagation();delHist(${i})" title="Remove">✕</button>
+    </div>`).join('');
+  if (histAll.length > 3) {
+    html += `<button class="show-more" onclick="histShowAll=!histShowAll;renderHistory()">
+      ${histShowAll ? '− Show Less' : '+ Show All ('+histAll.length+')'}
+    </button>`;
+  }
+  el.innerHTML = html;
+}
+async function delHist(idx) {
+  await fetch(`/history/delete/${idx}`, {method:'POST'});
+  loadHistory();
+}
+function loadHistItem(appNum) {
+  document.getElementById('appInput').value = appNum;
+  runAnalysis();
+}
+
+/* ══════════════════════════════════════════════
+   GLOSSARY — accordion-style, heading = trigger
+══════════════════════════════════════════════ */
+function buildGlossary() {
+  const el = document.getElementById('glossaryBody');
+  let html = GLOSSARY.map((g, i) => {
+    const paras = g.paras.map(p => {
+      if (p.startsWith('NOTE:')) {
+        return `<div class="gl-note">📌 ${p}</div>`;
+      }
+      return `<div class="gl-para">${p}</div>`;
+    }).join('');
+    return `
+    <div class="gl-item">
+      <div class="gl-term" id="glt-${i}" onclick="toggleGlossary(${i})">
+        <div class="gl-icon" id="gli-${i}">+</div>
+        <div class="gl-term-label">${g.term}</div>
+      </div>
+      <div class="gl-body" id="glb-${i}">${paras}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = html;
+}
+function toggleGlossary(i) {
+  const body = document.getElementById('glb-'+i);
+  const hdr  = document.getElementById('glt-'+i);
+  const icon = document.getElementById('gli-'+i);
+  const open = body.classList.toggle('open');
+  hdr.classList.toggle('open', open);
+  icon.textContent = open ? '−' : '+';
+}
+
+/* ══════════════════════════════════════════════
+   ANALYSIS RUNNER
+══════════════════════════════════════════════ */
+async function runAnalysis() {
+  let inputVal = document.getElementById('appInput').value.trim();
+  if (!inputVal) return;
+
+  // ── Patent number mode: resolve → app number first ──────────────────
+  let appNum = inputVal;
+  if (searchMode === 'patent') {
+    showState('loading');
+    document.getElementById('actionBar').style.display = 'none';
+    document.getElementById('centerBadge').textContent = inputVal;
+    document.getElementById('navHint').innerHTML = `Resolving patent <span>${inputVal}</span>…`;
+    startProgress();
+    const noteEl = document.getElementById('patentResolveNote');
+    noteEl.style.display = 'none';
+    try {
+      const enc = encodeURIComponent(inputVal.replace(/[,\s]/g,'').replace(/^US/i,''));
+      const pRes = await fetch('/search_by_patent/' + encodeURIComponent(inputVal));
+      const pData = await pRes.json();
+      if (!pRes.ok || pData.error) {
+        finishProgress();
+        showError(pData.error || 'Patent number not found in USPTO records.');
+        return;
+      }
+      appNum = pData.app_num;
+      noteEl.textContent = `Patent ${pData.patent_num} → App No. ${appNum} (resolved automatically)`;
+      noteEl.style.display = 'block';
+    } catch(e) {
+      finishProgress();
+      showError('Could not resolve patent number: ' + e.message);
+      return;
+    }
+  } else {
+    showState('loading');
+    document.getElementById('actionBar').style.display = 'none';
+    document.getElementById('centerBadge').textContent = appNum;
+    document.getElementById('navHint').innerHTML = `Analyzing <span>${appNum}</span>…`;
+    startProgress();
+  }
+  document.getElementById('navHint').innerHTML = `Analyzing <span>${appNum}</span>…`;
+
+  try {
+    const res  = await fetch('/analyze', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({app_num: appNum})
+    });
+    const data = await res.json();
+    finishProgress();
+
+    if (!res.ok || data.error) { showError(data.error || 'Analysis failed.'); return; }
+
+    currentResult = data; activeAppNum = appNum;
+    renderResult(data);
+    renderRawDates(data);
+    updateExpToolLink();
+    loadHistory();
+    loadDocsTransactions(appNum);
+    document.getElementById('actionBar').style.display = 'flex';
+    document.getElementById('abMeta').textContent = appNum;
+    document.getElementById('navHint').innerHTML = `<span>${appNum}</span> · ${data.patent_number||''}`;
+
+    // Enable full report print button in sidebar
+    const dlBtn = document.getElementById('dlReportBtn');
+    if (dlBtn) { dlBtn.style.opacity='1'; dlBtn.style.pointerEvents='auto'; }
+
+    // Update expiration tool links with current ref + mode
+    updateExpToolLink();
+
+  } catch(e) {
+    showError('Network error: ' + e.message);
+  }
+}
+
+/* Progress */
+function startProgress() {
+  const steps = ['ps1','ps2','ps3','ps4','ps5','ps6'];
+  const widths = [15,30,50,65,80,95];
+  let step = 0;
+  steps.forEach(s => document.getElementById(s).className = 'ps');
+  if (progTimer) clearInterval(progTimer);
+  progTimer = setInterval(() => {
+    if (step < steps.length) {
+      if (step > 0) document.getElementById(steps[step-1]).className = 'ps done';
+      document.getElementById(steps[step]).className = 'ps active';
+      document.getElementById('progBar').style.width = widths[step] + '%';
+      step++;
+    } else clearInterval(progTimer);
+  }, 550);
+}
+function finishProgress() {
+  if (progTimer) clearInterval(progTimer);
+  document.getElementById('progBar').style.width = '100%';
+  setTimeout(() => { document.getElementById('progBar').style.width = '0%'; }, 700);
+}
+function showState(st) {
+  ['stEmpty','stLoad','stErr','resultPad'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.display = 'none';
+  });
+  if (st==='empty')   document.getElementById('stEmpty').style.display = 'flex';
+  if (st==='loading') document.getElementById('stLoad').style.display = 'flex';
+  if (st==='error')   document.getElementById('stErr').style.display = 'block';
+  if (st==='result')  document.getElementById('resultPad').style.display = 'block';
+}
+function showError(msg) {
+  showState('error');
+  document.getElementById('errMsg').textContent = '⚠ ' + msg;
+}
+
+/* ══════════════════════════════════════════════
+   RENDER RESULT
+══════════════════════════════════════════════ */
+function renderResult(d) {
+  const t = d.totals, u = d.uspto_official, m = d.maintenance;
+  const diff = t.total_pta - u.total_pta;
+  secIdx = 0;
+  let html = '<div class="fade-in">';
+
+  /* Meta strip */
+  html += `<div class="meta-strip">
+    <div class="mc"><div class="mc-l">Patent No.</div><div class="mc-v">${d.patent_number||'—'}</div></div>
+    <div class="mc"><div class="mc-l">Invention Title</div>
+      <div class="mc-v" style="font-family:'Lato',sans-serif;font-size:.77rem;font-weight:600;white-space:normal">${d.title||'—'}</div></div>
+    <div class="mc"><div class="mc-l">Examiner</div>
+      <div class="mc-v" style="font-family:'Lato',sans-serif;font-size:.78rem">${d.examiner||'—'}</div></div>
+  </div>`;
+
+  /* Summary cards */
+  const td      = d.terminal_disclaimer || {};
+  const tdActive = td.detected && td.active_count > 0;
+  const expShow  = m ? (m.td_applied ? fmtDate(m.effective_expiration) : fmtDate(m.expiration_with_pta)) : 'N/A';
+  const expLabel = m && m.td_applied ? 'Expiration (TD-capped)' : 'Patent Expiration';
+  const expSub   = m && m.td_applied
+    ? `⚠ TD cap · uncapped: ${fmtDate(m.expiration_with_pta)}`
+    : 'filing + 20yr + PTA';
+  const expCardStyle = m && m.td_applied
+    ? 'background:#fff8ea;border:2px solid var(--gold)'
+    : '';
+  html += `<div class="sum-cards">
+    <div class="sc sc-dark">
+      <div class="sc-l">Calculated PTA</div>
+      <div class="sc-v" id="pta-ctr">0</div>
+      <div class="sc-s" style="color:#777">days · 35 USC 154(b)</div>
+    </div>
+    <div class="sc sc-blue">
+      <div class="sc-l">USPTO Official PTA</div>
+      <div class="sc-v">${u.total_pta}</div>
+      <div class="sc-s">days · from patent record</div>
+    </div>
+    <div class="sc ${m&&m.td_applied?'':'sc-green'}" style="${expCardStyle}">
+      <div class="sc-l" style="${m&&m.td_applied?'color:var(--gold-dim)':''}">${expLabel}</div>
+      <div class="sc-v" style="font-size:1.2rem;${m&&m.td_applied?'color:var(--gold-dim)':''}">${expShow}</div>
+      <div class="sc-s" style="${m&&m.td_applied?'color:#a08040':''}">${expSub}</div>
+    </div>
+  </div>`;
+
+  /* Compare banner */
+  html += diff===0
+    ? `<div class="cmp-banner cmp-ok">✓ Calculated PTA matches USPTO official: <strong>${t.total_pta} days</strong></div>`
+    : `<div class="cmp-banner cmp-diff">⚠ Discrepancy — Calculated: <strong>${t.total_pta}</strong> · USPTO: <strong>${u.total_pta}</strong> · Diff: <strong>${diff>0?'+':''}${diff} days</strong></div>`;
+
+  /* Terminal Disclaimer Banner (if TD detected) */
+  if (tdActive) {
+    const tdResolved = td.resolved && td.td_cap_date;
+    html += `<div style="background:${tdResolved?'#fff8e8':'#fff3f3'};border:2px solid ${tdResolved?'var(--gold)':'var(--red)'};border-radius:8px;padding:11px 15px;margin-bottom:12px;display:flex;align-items:flex-start;gap:11px">
+      <span style="font-size:1.2rem;flex-shrink:0">${tdResolved?'⚠️':'🔴'}</span>
+      <div>
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:800;font-size:.92rem;color:${tdResolved?'#7a4d00':'var(--red)'};margin-bottom:3px">
+          TERMINAL DISCLAIMER ON FILE — 37 CFR 1.321(c)
+        </div>
+        <div style="font-size:.76rem;color:#555;line-height:1.55">
+          ${tdResolved
+            ? `This application's effective expiration is <strong>capped at ${fmtDate(td.td_cap_date)}</strong> by a terminal disclaimer referencing
+               ${td.td_ref_patent ? 'Patent <strong>'+td.td_ref_patent+'</strong>' : td.td_ref_app ? 'Application <strong>'+td.td_ref_app+'</strong>' : 'parent patent/application'}.
+               Without the disclaimer, expiration would be <strong>${m?fmtDate(m.expiration_with_pta):'N/A'}</strong>
+               (forfeiting <strong>${m?m.td_days_forfeited:0} days</strong> of PTA benefit).`
+            : `A terminal disclaimer was detected on this application but the parent patent reference could not be auto-resolved.
+               <strong>The expiration date shown may be overstated.</strong>
+               Please manually verify the disclaimed-to date using the referenced patent.`
+          }
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* Expiration Narrative Card */
+  var narrativeTxt = generateExpirationNarrative(d);
+  html += '<div style="background:linear-gradient(135deg,#fffbf0,#fff8e6);border:2px solid #c5a059;border-left:5px solid #c5a059;border-radius:10px;padding:16px 20px;margin-bottom:16px;line-height:1.75;box-shadow:0 2px 10px rgba(197,160,89,.18)">'
+    + '<div style="font-family:Rajdhani,sans-serif;font-weight:900;font-size:.82rem;color:#9a7a3f;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px">📋 EXPIRATION SUMMARY</div>'
+    + '<p style="font-size:.86rem;color:#2d2d2d;margin:0;font-style:italic;line-height:1.75">' + narrativeTxt + '</p>'
+    + '</div>';
+
+  /* Accordion sections */
+  html += acc('A-DELAY — USPTO Processing (37 CFR 1.702(a))',   t.a_days,   buildABody(d.a_delay));
+  html += acc('B-DELAY — 3-Year Rule (37 CFR 1.702(b))',         t.b_days,   buildBBody(d.b_delay));
+  html += acc('C-DELAY — Secrecy / Interference',               t.c_days,   buildCBody(d.c_delay));
+  html += acc('A ∩ B OVERLAP — Deducted Days',                  d.overlap.total_days, buildOvBody(d.overlap), 'neu');
+  html += acc('APPLICANT DELAY — 37 CFR 1.704',                 d.applicant_delay.total_calculated, buildAppBody(d.applicant_delay));
+  html += accTotals(t, u, diff);
+  html += accCompare(t, u, diff);
+  if (d.pta_history && d.pta_history.length) html += accHistEvents(d.pta_history, d.date_table);
+  if (tdActive) html += accTD(td, m);
+  if (m) html += accMaint(m);
+
+  html += '</div>';
+  document.getElementById('resultPad').innerHTML = html;
+  showState('result');
+  animateCounter('pta-ctr', t.total_pta);
+  setTimeout(calcUpdate, 100);
+}
+
+/* ── Accordion helpers ── */
+function acc(title, days, body, forceCls) {
+  const id  = 's' + (++secIdx);
+  const cls = forceCls || (days > 0 ? 'has' : 'none');
+  const lbl = days > 0 ? `+${days} days` : (days===0?'0 days':`${days} days`);
+  return `<div class="acc">
+    <div class="acc-hdr" id="ah-${id}" onclick="toggleAcc('${id}')">
+      <div class="acc-left"><div class="acc-ico" id="ai-${id}">+</div><div class="acc-title">${title}</div></div>
+      <span class="acc-badge ${cls}">${lbl}</span>
+    </div>
+    <div class="acc-body" id="${id}">${body}</div>
+  </div>`;
+}
+function toggleAcc(id) {
+  const body = document.getElementById(id);
+  const hdr  = document.getElementById('ah-'+id);
+  const ico  = document.getElementById('ai-'+id);
+  const open = body.classList.toggle('open');
+  hdr.classList.toggle('open', open);
+  ico.textContent = open ? '−' : '+';
+}
+
+/* ── Forensic block (answer bold+large, detail smaller) ── */
+function fb(item, dKey='days') {
+  const days = item[dKey] || 0;
+  const cls  = days > 0 ? 'fb-d' : (days===0?'fb-ok':'');
+  const chipCls = days > 0 ? 'bad' : 'ok';
+  const chipTxt = days > 0
+    ? `⚠ DELAY: ${days} days${item.start?' ['+item.start+' → '+item.end+']':''}`
+    : '✓ No delay';
+  const firstSentence = (item.explanation||'').split(/\.\s+/)[0] + '.';
+  return `<div class="fb ${cls}">
+    <div class="fb-rule">✦ ${item.rule||''}</div>
+    <div class="fb-ans">${firstSentence}</div>
+    <div class="fb-det">${item.explanation||''}</div>
+    <span class="fb-chip ${chipCls}">${chipTxt}</span>
+  </div>`;
+}
+
+function buildABody(a) {
+  let h = (a.forensic||[]).map(f => fb(f)).join('');
+  if (a.merged && a.merged.length) {
+    h += `<div style="margin-top:10px;background:#f8f5ee;padding:10px;border-radius:6px">
+      <div style="font-size:.66rem;font-weight:700;letter-spacing:1px;color:#999;margin-bottom:6px">MERGED A-WINDOWS (union)</div>`;
+    h += a.merged.map(m => `<div class="ov-chip">📅 ${m.start} → ${m.end} <strong>(${m.days}d)</strong></div>`).join('');
+    h += `<div style="font-size:.9rem;font-weight:800;color:var(--dark);margin-top:6px">Total: ${a.total_days} days</div></div>`;
+  }
+  return h;
+}
+function buildBBody(b) { return (b.forensic||[]).map(f => fb(f)).join(''); }
+function buildCBody(c) {
+  return (c.forensic||[]).map(f => `<div class="fb">
+    <div class="fb-rule">✦ ${f.rule||''}</div>
+    <div class="fb-ans">${(f.explanation||'').split(/\.\s+/)[0]}.</div>
+    <div class="fb-det">${f.explanation||''}</div>
+    <span class="fb-chip info">ℹ ${f.days>0?f.days+' days':'Manual review required'}</span>
+  </div>`).join('');
+}
+function buildOvBody(ov) {
+  if (!ov.intervals || !ov.intervals.length)
+    return `<div class="fb fb-ok"><div class="fb-rule">No A∩B overlap</div>
+      <div class="fb-ans">A-delay and B-delay periods do not overlap. No deduction needed.</div>
+      <span class="fb-chip ok">✓ Overlap = 0 days</span></div>`;
+  let h = `<div style="font-size:.8rem;font-weight:700;color:#666;margin-bottom:7px">Date ranges counted in both A and B (deducted once):</div>`;
+  h += ov.intervals.map(iv => `<div class="ov-chip">⟨ ${iv.start} → ${iv.end} ⟩ = ${iv.days} days</div>`).join('');
+  h += `<div style="font-size:.9rem;font-weight:800;color:var(--red);margin-top:8px">Total deducted: ${ov.total_days} days</div>`;
+  return h;
+}
+function buildAppBody(ad) {
+  let h = (ad.forensic||[]).map(f => fb(f,'delay_days')).join('');
+  const d2 = ad.total_calculated - ad.total_uspto;
+  h += `<div style="display:flex;gap:8px;margin-top:10px">
+    <div style="flex:1;background:#fff3f3;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:.6rem;color:#aaa;font-weight:700;letter-spacing:1px;margin-bottom:2px">CALCULATED</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:800;color:var(--red)">${ad.total_calculated}</div>
+      <div style="font-size:.64rem;color:#aaa">days</div>
+    </div>
+    <div style="flex:1;background:#f0f5ff;border-radius:6px;padding:10px;text-align:center">
+      <div style="font-size:.6rem;color:#aaa;font-weight:700;letter-spacing:1px;margin-bottom:2px">USPTO OFFICIAL</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:800;color:var(--blue)">${ad.total_uspto}</div>
+      <div style="font-size:.64rem;color:#aaa">days</div>
+    </div>
+  </div>`;
+  if (d2 !== 0) h += `<div class="alert alert-warning" style="margin-top:8px;font-size:.75rem">⚠ Applicant delay discrepancy: ${d2>0?'+':''}${d2} days vs USPTO record.</div>`;
+  return h;
+}
+function accTotals(t, u, diff) {
+  const id = 's' + (++secIdx);
+  return `<div class="acc">
+    <div class="acc-hdr open" id="ah-${id}" onclick="toggleAcc('${id}')">
+      <div class="acc-left"><div class="acc-ico" id="ai-${id}">−</div><div class="acc-title">FINAL PTA CALCULATION — Summary</div></div>
+      <span class="acc-badge ${diff===0?'none':'has'}">${t.total_pta} days</span>
+    </div>
+    <div class="acc-body open" id="${id}">
+      <table class="ttbl">
+        <tr><td class="tl">A-Delay (USPTO Processing)</td><td class="tv">${t.a_days} days</td></tr>
+        <tr><td class="tl">B-Delay (3-Year Rule)</td><td class="tv">${t.b_days} days</td></tr>
+        <tr><td class="tl">C-Delay (Secrecy/Interference)</td><td class="tv">${t.c_days} days</td></tr>
+        <tr class="sub"><td class="tl">− Overlap (A ∩ B)</td><td class="tv">−${t.overlap_days} days</td></tr>
+        <tr><td class="tl" style="font-weight:700;color:#333">Non-Overlapping Delay</td><td class="tv" style="color:var(--dark)">${t.non_overlap} days</td></tr>
+        <tr class="sub"><td class="tl">− Applicant Delay</td><td class="tv">−${t.app_delay} days</td></tr>
+        <tr class="tot"><td class="tl">TOTAL PTA (Calculated)</td><td class="tv">${t.total_pta} days</td></tr>
+      </table>
+    </div>
+  </div>`;
+}
+function accCompare(t, u, diff) {
+  const id = 's' + (++secIdx);
+  const pairs = [['A-Delay',t.a_days,u.a_delay],['B-Delay',t.b_days,u.b_delay],['C-Delay',t.c_days,u.c_delay],['Overlap','−'+t.overlap_days,'−'+u.overlap],['App Delay','−'+t.app_delay,'−'+u.app_delay],['TOTAL PTA',t.total_pta+' d',u.total_pta+' d']];
+  const rows = pairs.map(([l,c,u2]) => `<div class="cmp-row"><span class="cl">${l}</span><span class="cv">${c}</span></div>`).join('');
+  const rows2= pairs.map(([l,c,u2]) => `<div class="cmp-row"><span class="cl">${l}</span><span class="cv">${u2}</span></div>`).join('');
+  return `<div class="acc">
+    <div class="acc-hdr" id="ah-${id}" onclick="toggleAcc('${id}')">
+      <div class="acc-left"><div class="acc-ico" id="ai-${id}">+</div><div class="acc-title">USPTO vs CALCULATED — Side-by-Side</div></div>
+      <span class="acc-badge ${diff===0?'none':'has'}">${diff===0?'Match':(diff>0?'+':'')+diff+' d'}</span>
+    </div>
+    <div class="acc-body" id="${id}">
+      <div class="cmp-grid">
+        <div class="cmp-col ours"><h4>Our Calculation</h4>${rows}</div>
+        <div class="cmp-col theirs"><h4>USPTO Official</h4>${rows2}</div>
+      </div>
+      ${diff!==0?`<div class="alert alert-warning" style="margin-top:9px;font-size:.74rem">⚠ ${diff<0
+        ?'USPTO may use internal mailing rules, holidays, or count additional 1.704(c) categories differently.'
+        :'USPTO may have granted a PTA petition reducing applicant delay.'}
+      </div>`:''}
+    </div>
+  </div>`;
+}
+function accHistEvents(hist, dateTable) {
+  const id = 's' + (++secIdx);
+  const histRows = hist.map(h => `<tr>
+    <td>${h.seq}</td><td class="mono">${h.date}</td>
+    <td class="${h.uspto_delay>0?'ud':''}">${h.uspto_delay||'—'}</td>
+    <td class="${h.app_delay>0?'ad':''}">${h.app_delay||'—'}</td>
+    <td style="font-size:.68rem;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${h.desc}">${h.desc}</td>
+  </tr>`).join('');
+  /* Deduplicated timeline rows */
+  const seen = new Set();
+  const unique = (dateTable||[]).filter(r => {
+    const k = r.date+'|'+r.name; if(seen.has(k))return false; seen.add(k); return true;
+  });
+  const tlRows = unique.map(r => `
+    <div class="tl-row">
+      <div class="tl-date">${r.date}</div>
+      <div class="tl-role ${roleCls(r.role)}">${r.role}</div>
+      <div><div class="tl-name">${r.name}</div>${r.note?`<div class="tl-note">↳ ${r.note}</div>`:''}</div>
+    </div>`).join('');
+  return `<div class="acc">
+    <div class="acc-hdr" id="ah-${id}" onclick="toggleAcc('${id}')">
+      <div class="acc-left"><div class="acc-ico" id="ai-${id}">+</div>
+        <div class="acc-title">USPTO PTA HISTORY &amp; TIMELINE</div></div>
+      <span class="acc-badge neu">${hist.length} events</span>
+    </div>
+    <div class="acc-body" id="${id}" style="padding:0">
+      <div style="display:flex;border-bottom:2px solid var(--gold)">
+        <button id="iht-log-${id}" onclick="switchInnerTab('${id}','log')"
+          style="flex:1;padding:8px 12px;border:none;background:var(--dark);color:var(--gold);font-size:.68rem;font-weight:700;letter-spacing:1px;cursor:pointer;border-right:1px solid #444">
+          📋 USPTO EVENT LOG (${hist.length})
+        </button>
+        <button id="iht-tl-${id}" onclick="switchInnerTab('${id}','tl')"
+          style="flex:1;padding:8px 12px;border:none;background:#f5f2eb;color:#999;font-size:.68rem;font-weight:700;letter-spacing:1px;cursor:pointer">
+          📅 TIMELINE (${unique.length})
+        </button>
+      </div>
+      <div id="iht-${id}-log" style="overflow-x:auto">
+        <table class="htbl"><thead><tr><th>SEQ</th><th>DATE</th><th>USPTO</th><th>APP</th><th>EVENT</th></tr></thead>
+        <tbody>${histRows}</tbody></table>
+      </div>
+      <div id="iht-${id}-tl" style="display:none">${tlRows}</div>
+    </div>
+  </div>`;
+}
+function switchInnerTab(accId, tab) {
+  const logEl  = document.getElementById('iht-'+accId+'-log');
+  const tlEl   = document.getElementById('iht-'+accId+'-tl');
+  const logBtn = document.getElementById('iht-log-'+accId);
+  const tlBtn  = document.getElementById('iht-tl-'+accId);
+  if (tab==='log') {
+    logEl.style.display='block'; tlEl.style.display='none';
+    logBtn.style.background='var(--dark)'; logBtn.style.color='var(--gold)';
+    tlBtn.style.background='#f5f2eb'; tlBtn.style.color='#999';
+  } else {
+    logEl.style.display='none'; tlEl.style.display='block';
+    tlBtn.style.background='var(--dark)'; tlBtn.style.color='var(--gold)';
+    logBtn.style.background='#f5f2eb'; logBtn.style.color='#999';
+  }
+}
+function accTD(td, m) {
+  const id = 's' + (++secIdx);
+  const tdDate = td.td_cap_date ? fmtDate(td.td_cap_date) : '—';
+  const tdBadge = td.resolved ? tdDate : `${td.active_count} filed`;
+  const badgeCls = td.resolved ? 'has' : 'has';
+
+  /* Individual TD rows */
+  const rawRows = (td.raw_tds||[]).map(t => `
+    <div class="fb ${t.withdrawn||t.possibly_withdrawn?'':'fb-d'}" style="${t.withdrawn||t.possibly_withdrawn?'border-left-color:#aaa;background:#fafafa':''}">
+      <div class="fb-rule">✦ ${t.doc_code||'TERMINAL DISCLAIMER'} ${t.withdrawn?'[WITHDRAWN]':t.possibly_withdrawn?'[POSSIBLY WITHDRAWN]':''}</div>
+      <div class="fb-ans">${t.description||'Terminal Disclaimer filed'}</div>
+      <div class="fb-det">
+        Filed: ${t.date||'unknown date'}${t.ref_patent?' · References Patent: <strong>'+t.ref_patent+'</strong>':''}${t.ref_app?' · References App: <strong>'+t.ref_app+'</strong>':''}
+      </div>
+      <span class="fb-chip ${t.withdrawn||t.possibly_withdrawn?'info':'bad'}">${t.withdrawn?'✕ Withdrawn':t.possibly_withdrawn?'⚠ Possibly Withdrawn':'⚠ Active TD'}</span>
+    </div>`).join('');
+
+  /* Resolution method label */
+  const resMethLabel = td.resolution_method === 'description'
+    ? '✓ Auto-resolved from TD description text'
+    : td.resolution_method === 'continuity'
+    ? '✓ Auto-resolved via USPTO continuity data'
+    : '✗ Could not auto-resolve';
+  const resMethColor = td.resolved ? '#2a7a2a' : 'var(--red)';
+
+  /* Resolution result */
+  const resBlock = td.resolved
+    ? `<div style="background:#fff8e8;border:1.5px solid var(--gold);border-radius:8px;padding:13px;margin-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+          <div style="font-size:.66rem;font-weight:700;letter-spacing:1px;color:var(--gold-dim);text-transform:uppercase">TD RESOLUTION RESULT</div>
+          <span style="font-size:.67rem;font-weight:700;color:${resMethColor};background:${td.resolution_method?'#efffef':'#fff3f3'};border:1px solid ${td.resolved?'#b0ddb0':'#ffb0b0'};border-radius:12px;padding:2px 9px">${resMethLabel}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+          <div style="background:#fff;padding:9px;border-radius:6px;border:1px solid #e8e3d8">
+            <div style="font-size:.58rem;color:#ccc;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">Referenced Parent</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.82rem;font-weight:700;color:var(--dark)">${td.td_ref_patent||td.td_ref_app||'—'}</div>
+          </div>
+          <div style="background:#fff;padding:9px;border-radius:6px;border:1px solid #e8e3d8">
+            <div style="font-size:.58rem;color:#ccc;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">TD Cap Date (Parent Expiry)</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.82rem;font-weight:700;color:var(--gold-dim)">${tdDate}</div>
+          </div>
+          <div style="background:#fff;padding:9px;border-radius:6px;border:1px solid #e8e3d8">
+            <div style="font-size:.58rem;color:#ccc;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">Uncapped Expiration</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.82rem;font-weight:600;color:#666;text-decoration:line-through">${m?fmtDate(m.expiration_with_pta):'—'}</div>
+          </div>
+          <div style="background:#fff8ea;padding:9px;border-radius:6px;border:1.5px solid var(--gold)">
+            <div style="font-size:.58rem;color:var(--gold-dim);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">Effective Expiration ✓</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.88rem;font-weight:800;color:var(--gold-dim)">${tdDate}</div>
+            <div style="font-size:.64rem;color:#a08040;margin-top:2px">−${m?m.td_days_forfeited:0} PTA days forfeited</div>
+          </div>
+        </div>
+        ${td.td_chain&&td.td_chain.length?`<div style="margin-top:9px;font-size:.72rem;color:#888">Resolution chain: ${td.td_chain.join(' → ')}</div>`:''}
+        ${td.parent_apps_tried&&td.parent_apps_tried.length?`<div style="margin-top:7px;font-size:.71rem;color:#888">Continuity parents checked: ${td.parent_apps_tried.join(', ')}</div>`:''}
+      </div>`
+    : `<div style="background:#fff3f3;border:1.5px solid var(--red);border-radius:8px;padding:12px;margin-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:.8rem;font-weight:700;color:var(--red)">⚠ Parent Reference Not Auto-Resolved</div>
+          <span style="font-size:.67rem;font-weight:700;color:var(--red);background:#fff3f3;border:1px solid #ffb0b0;border-radius:12px;padding:2px 9px">${resMethLabel}</span>
+        </div>
+        <div style="font-size:.74rem;color:#555;line-height:1.55">The TD description did not contain a parseable patent or application number,
+        and no continuity parent data was found.
+        The expiration date shown <strong>may be overstated</strong> and does not reflect the TD cap.
+        Please look up the referenced patent manually and use the Manual Calculator to compute the adjusted expiration.</div>
+        ${td.parent_apps_tried&&td.parent_apps_tried.length?`<div style="margin-top:7px;font-size:.71rem;color:#888">Continuity parents checked (none yielded expiry): ${td.parent_apps_tried.join(', ')}</div>`:''}
+      </div>`;
+
+  const noteBlock = td.note
+    ? `<div style="margin-top:10px;font-size:.73rem;color:#888;background:#fafaf7;border-radius:6px;padding:9px 11px;border:1px solid #e8e3d8;line-height:1.55">${td.note}</div>`
+    : '';
+
+  return `<div class="acc">
+    <div class="acc-hdr" id="ah-${id}" onclick="toggleAcc('${id}')">
+      <div class="acc-left">
+        <div class="acc-ico" id="ai-${id}" style="background:#7a3000">+</div>
+        <div class="acc-title" style="color:#7a3000">TERMINAL DISCLAIMER — 37 CFR 1.321(c)</div>
+      </div>
+      <span class="acc-badge ${badgeCls}">${td.resolved?'Cap: '+tdBadge:tdBadge+' TDs'}</span>
+    </div>
+    <div class="acc-body" id="${id}">
+      ${rawRows}
+      ${resBlock}
+      ${noteBlock}
+    </div>
+  </div>`;
+}
+
+function accMaint(m) {
+  const id = 's' + (++secIdx);
+  const ords = ['1st','2nd','3rd'];
+
+  /* ── Maintenance fee rows with TD-relevance colour coding ── */
+  const rows = (m.maintenance_fees||[]).map(mf => {
+    const rel = mf.td_relevance || 'needed';
+    // Row styling based on whether this fee still matters given the TD cap
+    const rowStyle = rel === 'not_needed'
+      ? 'background:#f5f5f5;opacity:.65;'           // greyed-out
+      : rel === 'partial'
+      ? 'background:#fff8e8;'                        // amber highlight
+      : '';
+    const graceStyle = rel === 'not_needed'
+      ? 'color:#aaa;'
+      : 'color:var(--red);font-weight:700;';
+    // Status badge shown in the last column when TD is active
+    const tdBadge = m.td_applied
+      ? rel === 'not_needed'
+        ? `<span style="background:#bbb;color:#fff;border-radius:3px;padding:1px 6px;font-size:.6rem;font-weight:700;white-space:nowrap">✕ Not needed</span>`
+        : rel === 'partial'
+        ? `<span style="background:#c9a84c;color:#fff;border-radius:3px;padding:1px 6px;font-size:.6rem;font-weight:700;white-space:nowrap">⚠ Evaluate</span>`
+        : `<span style="background:#27ae60;color:#fff;border-radius:3px;padding:1px 6px;font-size:.6rem;font-weight:700;white-space:nowrap">✓ Required</span>`
+      : '';
+    // Tooltip note from backend
+    const titleAttr = mf.td_note ? ` title="${mf.td_note.replace(/"/g,"'")}"` : '';
+    return `<tr style="${rowStyle}"${titleAttr}>
+      <td style="font-weight:700${rel==='not_needed'?';color:#aaa':''}">${ords[mf.fee_number-1]}</td>
+      <td class="mono">${fmtDate(mf.window_open)}</td>
+      <td class="mono">${fmtDate(mf.window_close)}</td>
+      <td class="mono" style="${graceStyle}">${fmtDate(mf.grace_period_end)}</td>
+      ${m.td_applied ? `<td style="padding:6px 8px">${tdBadge}</td>` : ''}
+    </tr>`;
+  }).join('');
+
+  /* Table header — add Status column when TD is active */
+  const thead = m.td_applied
+    ? `<tr><th>Fee</th><th>Window Opens</th><th>Window Closes</th><th>Grace Period End</th><th>TD Status</th></tr>`
+    : `<tr><th>Fee</th><th>Window Opens</th><th>Window Closes</th><th>Grace Period End</th></tr>`;
+
+  /* Show effective expiration (TD-capped if applicable) */
+  const effExp  = m.td_applied ? fmtDate(m.effective_expiration) : fmtDate(m.expiration_with_pta);
+  const tdNote  = m.td_applied
+    ? `<div style="background:#fff8e8;border-left:3px solid var(--gold);padding:7px 10px;font-size:.73rem;color:#7a4d00;border-radius:0 5px 5px 0;margin-top:8px">
+        <strong>⚠ Terminal Disclaimer applied.</strong> Effective expiration capped at ${fmtDate(m.td_cap_date)}
+        (parent expiry). Uncapped would have been ${fmtDate(m.expiration_with_pta)} (−${m.td_days_forfeited} days forfeited).
+        Maintenance fee rows marked <strong>✕ Not needed</strong> fall after patent expiry and require no payment.
+        Rows marked <strong>⚠ Evaluate</strong> overlap with the expiry window — payment keeps the patent alive to the cap date.
+      </div>` : '';
+
+  const expBox = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:13px">
+    ${[['Filing Date',m.filing_date],['Grant Date',m.grant_date],['Base Expiration (20yr)',m.base_expiration]].map(([l,v])=>
+      `<div style="background:#f8f5ee;padding:9px;border-radius:6px">
+        <div style="font-size:.58rem;color:#ccc;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${l}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:600;color:#333">${fmtDate(v)||v}</div>
+      </div>`).join('')}
+    <div style="background:#fff8ea;border:1.5px solid var(--gold);padding:9px;border-radius:6px">
+      <div style="font-size:.58rem;color:var(--gold-dim);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${m.td_applied?'Effective Expiration (TD-capped)':'Expiration + PTA'}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:.88rem;font-weight:800;color:var(--gold-dim)">${effExp}</div>
+      <div style="font-size:.64rem;color:#aaa;margin-top:2px">+${m.total_pta_days} PTA days${m.td_applied?' · TD cap applied':''}</div>
+    </div>
+  </div>${tdNote}`;
+
+  const badgeLabel = m.td_applied ? fmtDate(m.effective_expiration) : fmtDate(m.expiration_with_pta);
+  return `<div class="acc">
+    <div class="acc-hdr" id="ah-${id}" onclick="toggleAcc('${id}')">
+      <div class="acc-left"><div class="acc-ico" id="ai-${id}">+</div><div class="acc-title">MAINTENANCE FEES &amp; EXPIRATION</div></div>
+      <span class="acc-badge none">${badgeLabel}</span>
+    </div>
+    <div class="acc-body" id="${id}">
+      ${expBox}
+      <table class="mtbl"><thead>${thead}</thead><tbody>${rows}</tbody></table>
+      <div class="alert alert-info" style="margin-top:9px;font-size:.73rem">Educational tool only. Not a USPTO determination.</div>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   RAW DATES PANEL — LEFT
+   Shows only: extracted dates + prosecution counts
+   Calculated totals removed (shown in center only)
+══════════════════════════════════════════════ */
+function renderRawDates(d) {
+  const re = d.raw_events||{};
+  let html = '';
+  const sec = label => `<div class="rd-sec-hdr">${label}</div>`;
+  const row = (label, val, cls) => {
+    if (val===null||val===undefined||val===''||val==='N/A') return '';
+    return `<div class="rd-row"><div class="rd-lbl">${label}</div><div class="rd-val ${cls||''}">${val}</div></div>`;
+  };
+
+  /* APPLICATION META */
+  html += sec('APPLICATION');
+  html += row('App No.',    d.app_num,       'hl');
+  html += row('Patent No.', d.patent_number);
+  html += row('Applicant',  d.applicant);
+  html += row('Examiner',   d.examiner);
+
+  /* KEY DATES — deduplicated */
+  html += sec('KEY DATES');
+  const shownDates = new Set();
+  const drow = (label, val, cls) => {
+    if (!val) return '';
+    if (shownDates.has(val)) return '';
+    shownDates.add(val);
+    return row(label, fmtDate(val), cls);   // format YYYY-MM-DD → MM/DD/YYYY
+  };
+  html += drow('Filing',       d.filing_date,       'hl');
+  html += drow('Commencement', d.commencement_date, 'hl');
+  html += drow('NOA',          d.noa_date);
+  html += drow('Issue Fee',    d.issue_fee_date);
+  html += drow('Grant',        d.grant_date,        'hl');
+  html += drow('PTAC Date',    d.ptac_date);
+
+  /* PROSECUTION EVENT COUNTS */
+  html += sec('PROSECUTION EVENTS');
+  html += row('Non-Final OAs',  re.mctnf_count  + ' issued');
+  html += row('Final OAs',      re.mctfr_count  + ' issued');
+  html += row('Responses NF',   re.resp_nonfinal_count + ' filed');
+  html += row('Responses F',    re.resp_final_count    + ' filed');
+  html += row('RCEs Filed',     re.rce_count    + ' filed');
+  html += row('IDS Filed',      re.ids_count    + ' filed');
+  html += row('Extensions XT',  re.xt_count     + ' granted');
+
+  /* Terminal Disclaimer — show in raw dates panel */
+  const tdR = d.terminal_disclaimer || {};
+  html += sec('TERMINAL DISCLAIMER');
+  if (tdR.detected) {
+    html += row('TD Status',    tdR.active_count + ' active TDs', 'rv');
+    html += row('Resolved',     tdR.resolved ? 'Yes' : 'No (manual entry needed)', tdR.resolved?'gv':'rv');
+    if (tdR.td_cap_date)   html += row('TD Cap Date', tdR.td_cap_date, 'rv');
+    if (tdR.td_ref_patent) html += row('Ref Patent', tdR.td_ref_patent);
+    if (tdR.td_ref_app)    html += row('Ref App',    tdR.td_ref_app);
+    /* Placeholder — TD document files are injected here after docs load */
+    html += `<div id="tdDocFilesSection" style="padding:6px 10px 2px">
+      <div style="font-size:.62rem;color:#bbb;letter-spacing:.8px;font-weight:700;text-transform:uppercase;margin-bottom:5px">TD Document Files</div>
+      <div id="tdDocFilesList" style="font-size:.68rem;color:#aaa;font-style:italic">Loading documents…</div>
+    </div>`;
+  } else {
+    html += row('TD Status', 'None detected', 'gv');
+  }
+
+  /* NOTE: Calculated totals, expiration, and maintenance windows are shown
+     in the center panel accordions. Raw panel = extracted data only. */
+
+  document.getElementById('rawDatesBody').innerHTML = html || '<div class="rd-empty">No data available.</div>';
+}
+
+/* ══════════════════════════════════════════════
+   INLINE CALCULATOR
+══════════════════════════════════════════════ */
+function toggleInlineCalc() {
+  const trigger = document.getElementById('calcTrigger');
+  const panel   = document.getElementById('inlineCalcPanel');
+  const open    = trigger.classList.toggle('open');
+  panel.classList.toggle('open', open);
+  if (open) calcUpdate();
+}
+function calcUpdate() {
+  const filing   = document.getElementById('icFiling')?.value;
+  const grant    = document.getElementById('icGrant')?.value;
+  const pta      = parseInt(document.getElementById('icPTA')?.value) || 0;
+  const tdCheck  = document.getElementById('icTdCheck');
+  const tdDateEl = document.getElementById('icTdDate');
+  const resEl    = document.getElementById('icResult');
+  const subEl    = document.getElementById('icSub');
+  const tdNoteEl = document.getElementById('icTdNote');
+  const maintEl  = document.getElementById('icMaintSection');
+  if (!resEl) return;
+
+  // TD date input visibility
+  if (tdDateEl) tdDateEl.style.opacity = (tdCheck && tdCheck.checked) ? '1' : '0.4';
+
+  if (!filing) { resEl.textContent='Enter dates'; subEl.textContent=''; if(maintEl)maintEl.innerHTML=''; if(tdNoteEl)tdNoteEl.style.display='none'; return; }
+
+  const fd   = new Date(filing+'T00:00:00');
+  const base = new Date(fd); base.setFullYear(base.getFullYear()+20);
+  const exp  = new Date(base); exp.setDate(exp.getDate()+pta);
+
+  // Apply Terminal Disclaimer cap if checked and date provided
+  let effectiveExp = exp;
+  let tdApplied = false;
+  let tdForfeited = 0;
+  if (tdCheck && tdCheck.checked && tdDateEl && tdDateEl.value) {
+    const tdCap = new Date(tdDateEl.value + 'T00:00:00');
+    if (!isNaN(tdCap.getTime()) && tdCap < exp) {
+      tdForfeited  = Math.round((exp - tdCap) / (1000*60*60*24));
+      effectiveExp = tdCap;
+      tdApplied    = true;
+    }
+  }
+
+  resEl.textContent = calcFmt(effectiveExp);
+  subEl.textContent = tdApplied
+    ? `TD cap: ${calcFmt(effectiveExp)} · Without TD: ${calcFmt(exp)}`
+    : `${calcFmt(fd)} + 20yr + ${pta}d PTA`;
+
+  if (tdNoteEl) {
+    if (tdApplied) {
+      tdNoteEl.style.display = 'block';
+      tdNoteEl.innerHTML = `<strong>⚠ Terminal Disclaimer applied.</strong> Expiration capped at <strong>${calcFmt(effectiveExp)}</strong> (parent expiry). Without TD: <strong>${calcFmt(exp)}</strong>. PTA days forfeited: <strong>${tdForfeited}</strong>.`;
+    } else if (tdCheck && tdCheck.checked && tdDateEl && !tdDateEl.value) {
+      tdNoteEl.style.display = 'block';
+      tdNoteEl.innerHTML = `Enter the disclaimed-to date (parent patent's expiration date) in the field above.`;
+    } else {
+      tdNoteEl.style.display = 'none';
+    }
+  }
+
+  if (grant && maintEl) {
+    const gd = new Date(grant+'T00:00:00');
+    const ords = ['1st','2nd','3rd'];
+    const fees = [3,7,11].map((b,i) => {
+      const open2 = new Date(gd); open2.setFullYear(open2.getFullYear()+b);
+      const close = new Date(gd); close.setMonth(close.getMonth()+b*12+6);
+      const grace = new Date(close); grace.setMonth(grace.getMonth()+6);
+      return `<div style="display:flex;gap:8px;font-size:.72rem;padding:5px 0;border-bottom:1px solid #f2efe8">
+        <div style="font-weight:700;min-width:40px">${ords[i]}</div>
+        <div class="mono">${calcFmt(open2)} – ${calcFmt(close)}</div>
+        <div style="color:var(--red);font-weight:700;margin-left:auto">${calcFmt(grace)}</div>
+      </div>`;
+    });
+    maintEl.innerHTML = `<div class="calc-maint-hdr">Maintenance Fee Deadlines</div>${fees.join('')}`;
+  }
+}
+function calcFmt(d) {
+  if (!d||isNaN(d.getTime())) return '—';
+  return (d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0')+'/'+d.getFullYear();
+}
+
+/* ══════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════ */
+function fmtDate(d) {
+  if (!d) return 'N/A';
+  try { const [y,mo,dy]=d.split('-'); return `${mo}/${dy}/${y}`; } catch { return d; }
+}
+function roleCls(role) {
+  const r=(role||'').toLowerCase();
+  if(r==='core')return 'rc';
+  if(r.includes('a-delay'))return 'ra';
+  if(r.includes('b-delay'))return 'rb';
+  if(r==='applicant')return 'rp';
+  if(r.includes('applicant'))return 'rd2';
+  if(r==='rce')return 'rr';
+  return 'rp';
+}
+function animateCounter(id, target) {
+  const el = document.getElementById(id); if (!el) return;
+  let cur = 0;
+  const step = Math.max(1, Math.ceil(target/40));
+  const timer = setInterval(() => {
+    cur = Math.min(cur+step, target);
+    el.textContent = cur;
+    if (cur >= target) clearInterval(timer);
+  }, 28);
+}
+
+/* ══════════════════════════════════════════════
+   ACTIONS
+══════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════
+   EXPIRATION NARRATIVE — plain-English summary
+══════════════════════════════════════════════ */
+function generateExpirationNarrative(d) {
+  const t = d.totals || {}, u = d.uspto_official || {}, m = d.maintenance;
+  const td = d.terminal_disclaimer || {};
+
+  /* Format YYYY-MM-DD to 'Month D, YYYY' */
+  var fmtLong = function(v) {
+    if (!v) return null;
+    try {
+      var parts = v.split('-'), y = parts[0], mo = parts[1], dy = parts[2];
+      var months = ['January','February','March','April','May','June','July',
+                    'August','September','October','November','December'];
+      return months[parseInt(mo,10)-1] + ' ' + parseInt(dy,10) + ', ' + y;
+    } catch(e) { return v; }
+  };
+
+  var sentences = [];
+
+  /* 1. Priority / filing sentence */
+  var parentApps = (td.parent_apps || []).filter(function(p){ return p.filing_date && p.filing_date.length >= 10; });
+  var startDate = d.filing_date;
+  var hasPriority = false;
+  if (parentApps.length > 0) {
+    var sorted = parentApps.slice().sort(function(a,b){ return a.filing_date.localeCompare(b.filing_date); });
+    var earliest = sorted[0];
+    if (earliest.filing_date < d.filing_date) {
+      startDate = earliest.filing_date;
+      hasPriority = true;
+    }
+  }
+  if (hasPriority) {
+    sentences.push('This case has a priority claim where the earliest non-provisional ancestor was filed ' + fmtLong(startDate) + ', which starts the 20-year presumptive term.');
+  } else {
+    sentences.push('This application was filed on ' + (fmtLong(startDate) || '—') + ', which starts the 20-year presumptive term.');
+  }
+
+  /* 2. PTA sentence */
+  var calcPTA = t.total_pta || 0;
+  var usPTO   = u.total_pta || 0;
+  if (calcPTA === 0 && usPTO === 0) {
+    sentences.push('No patent term adjustment was awarded.');
+  } else if (calcPTA > usPTO) {
+    sentences.push('There ' + (usPTO === 1 ? 'was' : 'were') + ' ' + usPTO + ' day' + (usPTO !== 1 ? 's' : '') + ' of patent term adjustment determined by the USPTO; our independent analysis calculates ' + calcPTA + ' days, suggesting a potential discrepancy worth reviewing.');
+  } else if (calcPTA < usPTO) {
+    sentences.push('There ' + (usPTO === 1 ? 'was' : 'were') + ' ' + usPTO + ' day' + (usPTO !== 1 ? 's' : '') + ' of patent term adjustment awarded by the USPTO; our independent calculation yields ' + calcPTA + ' days.');
+  } else {
+    sentences.push('There ' + (usPTO === 1 ? 'was' : 'were') + ' ' + usPTO + ' day' + (usPTO !== 1 ? 's' : '') + ' of patent term adjustment awarded, confirmed by both the USPTO record and our independent calculation.');
+  }
+
+  /* 3. Terminal disclaimer sentence */
+  if (td.detected && td.active_count > 0) {
+    if (td.resolved && td.td_cap_date) {
+      var refStr = td.td_ref_patent
+        ? 'Patent ' + td.td_ref_patent
+        : (td.td_ref_app ? 'Application ' + td.td_ref_app : 'a related patent');
+      sentences.push('A terminal disclaimer was filed referencing ' + refStr + ', capping the effective expiration at ' + fmtLong(td.td_cap_date) + '.');
+    } else {
+      sentences.push('A terminal disclaimer was filed that may affect this term; the cap date could not be auto-resolved — please verify manually using the referenced patent.');
+    }
+  } else {
+    sentences.push('No terminal disclaimers were filed that would affect that term.');
+  }
+
+  /* 4. Final expiration sentence */
+  var expDate = m ? m.effective_expiration : null;
+  if (expDate) {
+    sentences.push('Accordingly, expiration is ' + fmtLong(expDate) + '.');
+  }
+
+  return sentences.join(' ');
+}
+
+function printFullReport() {
+  if (!currentResult) return;
+  const d = currentResult;
+  const t = d.totals, u = d.uspto_official, m = d.maintenance;
+  const td = d.terminal_disclaimer || {};
+  const diff = t.total_pta - u.total_pta;
+  const fmt = v => { if(!v)return'N/A'; try{const[y,mo,dy]=v.split('-');return`${mo}/${dy}/${y}`;}catch{return v;} };
+  const fmtN = (n,suffix='days') => (n===undefined||n===null)?'—':`${n} ${suffix}`;
+  const row2 = (l,v,cls='')=>`<tr><td>${l}</td><td class="mono ${cls}">${v}</td></tr>`;
+  const secHdr = t=>`<div class="sec-hdr">${t}</div>`;
+
+  /* ── A-Delay breakdown ── */
+  const aEvents = (d.pta_history||[]).filter(e=>e.role&&e.role.toLowerCase().includes('a-delay'));
+  let aRows = aEvents.length
+    ? aEvents.map(e=>`<tr><td class="mono" style="font-size:11px">${fmt(e.date)}</td><td style="font-size:11px">${e.description||e.event_type||''}</td><td class="mono ${e.days>0?'red':'grn'}">${e.days>0?'+':''}${e.days||0}</td></tr>`).join('')
+    : '<tr><td colspan="3" style="color:#aaa">No A-delay events recorded</td></tr>';
+
+  /* ── B-Delay breakdown ── */
+  const bDetail = d.b_delay_detail || {};
+
+  /* ── Applicant delay breakdown ── */
+  const appDelayEvents = (d.pta_history||[]).filter(e=>e.role&&e.role.toLowerCase().includes('applicant'));
+  let appDelRows = appDelayEvents.length
+    ? appDelayEvents.map(e=>`<tr><td class="mono" style="font-size:11px">${fmt(e.date)}</td><td style="font-size:11px">${e.description||e.event_type||''}</td><td class="mono red">${e.days||0}</td></tr>`).join('')
+    : '<tr><td colspan="3" style="color:#aaa">No applicant delay events recorded</td></tr>';
+
+  /* ── PTA History timeline ── */
+  const hist = d.pta_history || [];
+  const histRows = hist.length
+    ? hist.map(e=>{
+        const cls = (e.role||'').toLowerCase().includes('a-delay')?'red':(e.role||'').toLowerCase().includes('applicant')?'red':'grn';
+        return `<tr><td class="mono" style="font-size:10.5px">${fmt(e.date)}</td><td style="font-size:10.5px">${e.event_type||''}</td><td style="font-size:10.5px;color:#666">${e.description||''}</td><td class="mono ${cls}" style="font-size:10.5px">${e.days!==undefined?(e.days>0?'+':'')+e.days:''}</td><td style="font-size:10px;color:#888">${e.role||''}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="5" style="color:#aaa">No events</td></tr>';
+
+  /* ── TD section ── */
+  let tdSection = '';
+  if (td.detected) {
+    const tdRows = (td.raw_tds||[]).map(r=>`<tr><td class="mono" style="font-size:11px">${fmt(r.date)}</td><td style="font-size:11px">${r.description||r.doc_code||''}</td><td style="font-size:11px">${r.ref_patent||r.ref_app||'—'}</td><td style="font-size:11px">${r.withdrawn?'Withdrawn':r.possibly_withdrawn?'Possibly withdrawn':'Active'}</td></tr>`).join('');
+    tdSection = `<div class="sec">${secHdr('TERMINAL DISCLAIMER')}
+    <table><tr><th>Date</th><th>Description</th><th>Referenced</th><th>Status</th></tr>${tdRows}</table>
+    ${td.resolved?`<div style="margin-top:8px;padding:8px 12px;background:#fff8e8;border-left:3px solid #c5a059;font-size:11px;color:#7a4d00">
+      <strong>TD Cap Date:</strong> ${fmt(td.td_cap_date)} &nbsp;·&nbsp;
+      <strong>Method:</strong> ${td.resolution_method||'—'} &nbsp;·&nbsp;
+      <strong>Days Forfeited:</strong> ${m&&m.td_days_forfeited||0}</div>`:''}
+    </div>`;
+  }
+
+  /* ── Maintenance fees ── */
+  let maintSection = '';
+  if (m) {
+    const mfRows = (m.maintenance_fees||[]).map((mf,i)=>`<tr>
+      <td style="font-weight:700">${['1st','2nd','3rd'][i]||mf.fee_number}</td>
+      <td class="mono">${fmt(mf.window_open)}</td><td class="mono">${fmt(mf.window_close)}</td>
+      <td class="mono red">${fmt(mf.grace_period_end)}</td>
+      <td style="font-size:11px;color:#888">${mf.label||''}</td></tr>`).join('');
+    maintSection = `<div class="sec">${secHdr('MAINTENANCE FEES &amp; EXPIRATION')}
+    <table><tr><th>Item</th><th>Date</th></tr>
+    ${row2('Filing Date',fmt(m.filing_date))}
+    ${row2('Grant Date',fmt(m.grant_date))}
+    ${row2('Base Expiration (20yr)',fmt(m.base_expiration))}
+    ${row2('+ PTA Days','+'+m.total_pta_days+' days','grn')}
+    ${m.td_applied?row2('TD Cap Applied',fmt(m.td_cap_date),'gold'):''}
+    ${row2('Final Effective Expiration',fmt(m.effective_expiration),'gold')}
+    </table>
+    <table style="margin-top:8px"><tr><th>Fee</th><th>Window Opens</th><th>No Surcharge Until</th><th>Grace Period End</th><th>Note</th></tr>
+    ${mfRows}</table>
+    <p style="font-size:11px;color:#888;margin-top:6px">Maintenance fees are anchored to grant date and are not extended by PTA.</p>
+    </div>`;
+  }
+
+  const printWin = window.open('','_blank','width=1000,height=800');
+  printWin.document.write(`<!DOCTYPE html><html><head><title>Full PTA Report — ${d.app_num||d.patent_number}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:32px;font-size:12.5px;line-height:1.5;}
+    .hdr{border-bottom:3px solid #c5a059;padding-bottom:14px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;}
+    .hdr h1{font-size:17px;letter-spacing:1px;color:#2d2d2d;margin-top:4px;}
+    .hdr .sub{font-size:11px;color:#888;margin-top:3px;}
+    .logo{font-size:20px;font-weight:900;color:#c5a059;letter-spacing:2px;}
+    .cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px;}
+    .card{border-radius:8px;padding:12px 14px;border:1.5px solid;}
+    .card.dark{background:#2d2d2d;border-color:#c5a059;}.card.dark .cl{color:#888;font-size:10px;letter-spacing:1px;text-transform:uppercase;}.card.dark .cv{font-size:22px;font-weight:700;color:#c5a059;}
+    .card.blue{border-color:#3a7ec5;}.card.blue .cl{color:#3a7ec5;font-size:10px;letter-spacing:1px;text-transform:uppercase;}.card.blue .cv{font-size:22px;font-weight:700;color:#3a7ec5;}
+    .card.green{border-color:#3d9e6a;}.card.green .cl{color:#3d9e6a;font-size:10px;letter-spacing:1px;text-transform:uppercase;}.card.green .cv{font-size:16px;font-weight:700;color:#3d9e6a;}
+    .banner{border-radius:6px;padding:9px 14px;text-align:center;font-weight:700;font-size:12.5px;margin-bottom:18px;}
+    .banner.ok{background:#eaf5ee;color:#1e6b3e;border:1.5px solid #3d9e6a;}
+    .banner.diff{background:#fdeaea;color:#a02020;border:1.5px solid #d94f4f;}
+    .meta{display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;margin-bottom:18px;}
+    .mc{background:#f8f5ee;border:1px solid #e8e3d8;border-radius:6px;padding:8px 10px;}
+    .mc-l{font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;}
+    .mc-v{font-size:12px;font-weight:700;}
+    .sec{margin-bottom:18px;border:1px solid #e8e3d8;border-radius:6px;overflow:hidden;}
+    .sec-hdr{background:#2d2d2d;color:#c5a059;padding:7px 12px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
+    table{width:100%;border-collapse:collapse;}
+    th{background:#f5f2eb;color:#555;padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-align:left;border-bottom:1.5px solid #e8e3d8;}
+    td{padding:6px 10px;border-bottom:1px solid #f2efe8;vertical-align:top;}
+    tr:last-child td{border-bottom:none;}
+    .mono{font-family:'Courier New',monospace;}
+    .red{color:#d94f4f;font-weight:700;}.grn{color:#3d9e6a;font-weight:700;}.gold{color:#9a7a3f;font-weight:700;}
+    .tot-row td{border-top:2px solid #2d2d2d;font-weight:700;font-size:13.5px;}
+    .sub-head{background:#f5f2eb;font-weight:700;font-size:11px;color:#555;padding:5px 10px;border-bottom:1px solid #e8e3d8;}
+    .print-btn{margin-top:20px;text-align:center;}
+    .disclaimer{margin-top:18px;padding:10px 14px;background:#fff8e8;border:1px solid rgba(197,160,89,.4);border-radius:6px;font-size:11px;color:#7a4d00;line-height:1.6;}
+    @media print{.print-btn{display:none;}body{padding:16px;}}
+  </style></head><body>
+
+  <div class="hdr">
+    <div>
+      <div class="logo">EaseIP</div>
+      <h1>FULL PTA FORENSIC REPORT</h1>
+      <div class="sub">USPTO Patent Term Adjustment Analysis &nbsp;·&nbsp; Generated ${new Date().toLocaleString()}</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#888">
+      <div style="font-weight:700;color:#333;font-size:13px">${d.app_num||'—'}</div>
+      <div>Patent No. ${d.patent_number||'N/A'}</div>
+      <div style="margin-top:2px">${d.title||''}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="mc"><div class="mc-l">App No.</div><div class="mc-v mono">${d.app_num||'—'}</div></div>
+    <div class="mc"><div class="mc-l">Invention Title</div><div class="mc-v" style="font-size:11px">${d.title||'N/A'}</div></div>
+    <div class="mc"><div class="mc-l">Examiner</div><div class="mc-v">${d.examiner||'N/A'}</div></div>
+    <div class="mc"><div class="mc-l">Patent No.</div><div class="mc-v mono">${d.patent_number||'N/A'}</div></div>
+    <div class="mc"><div class="mc-l">Applicant</div><div class="mc-v">${d.applicant||'N/A'}</div></div>
+    <div class="mc"><div class="mc-l">Status</div><div class="mc-v">${d.status||'N/A'}</div></div>
+  </div>
+
+  <div class="cards">
+    <div class="card dark"><div class="cl">Calculated PTA</div><div class="cv">${t.total_pta} <span style="font-size:12px">days</span></div></div>
+    <div class="card blue"><div class="cl">USPTO Official PTA</div><div class="cv">${u.total_pta} <span style="font-size:12px">days</span></div></div>
+    <div class="card green"><div class="cl">Patent Expiration (+ PTA)</div><div class="cv">${m?fmt(m.effective_expiration):'N/A'}</div></div>
+  </div>
+
+  <div class="banner ${diff===0?'ok':'diff'}">
+    ${diff===0?'✓ Calculated PTA matches USPTO official: <strong>'+t.total_pta+' days</strong>':'⚠ Discrepancy — Calculated: <strong>'+t.total_pta+'</strong> · USPTO Official: <strong>'+u.total_pta+'</strong> · Difference: <strong>'+(diff>0?'+':'')+diff+' days</strong>'}
+  </div>
+
+  <!-- Expiration Narrative -->
+  <div class="sec" style="background:#fdf9f0;border-color:#e0d0a0">
+    <div class="sec-hdr" style="background:#9a7a3f">EXPIRATION SUMMARY — Plain-English Explanation</div>
+    <div style="padding:14px 16px;font-size:13px;line-height:1.8;color:#2d2d2d">
+      ${(()=>{ try { return generateExpirationNarrative(d); } catch(e){ return 'Summary unavailable.'; } })()}
+    </div>
+  </div>
+
+  <!-- Key Dates -->
+  <div class="sec">${secHdr('KEY DATES')}
+    <table><tr><th>Field</th><th>Date</th></tr>
+    ${[['Filing Date',d.filing_date],['NOA Date',d.noa_date],['Issue Fee Date',d.issue_fee_date],['Grant Date',d.grant_date]]
+      .filter(([,v])=>v).map(([l,v])=>row2(l,fmt(v))).join('')}
+    </table>
+  </div>
+
+  <!-- Final PTA Calculation Summary -->
+  <div class="sec">${secHdr('FINAL PTA CALCULATION — Summary')}
+    <table><tr><th>Component</th><th>Days</th></tr>
+    ${row2('A-Delay (USPTO Processing — 37 CFR 1.702(a))',t.a_days>0?'+'+t.a_days+' days':t.a_days+' days',t.a_days>0?'red':'grn')}
+    ${row2('B-Delay (3-Year Rule — 37 CFR 1.702(b))',t.b_days>0?'+'+t.b_days+' days':t.b_days+' days',t.b_days>0?'red':'grn')}
+    ${row2('C-Delay (Secrecy / Interference — 37 CFR 1.702(c))',t.c_days+' days')}
+    ${row2('− Overlap (A ∩ B)','-'+t.overlap_days+' days','red')}
+    ${row2('Non-Overlapping Delay',t.non_overlap+' days')}
+    ${row2('− Applicant Delay (37 CFR 1.704)','-'+t.app_delay+' days','red')}
+    <tr class="tot-row"><td class="gold">TOTAL PTA (Calculated)</td><td class="mono gold">${t.total_pta} days</td></tr>
+    <tr class="tot-row"><td style="color:#3a7ec5">USPTO Official PTA</td><td class="mono" style="color:#3a7ec5">${u.total_pta} days</td></tr>
+    </table>
+  </div>
+
+  <!-- A-Delay Events -->
+  <div class="sec">${secHdr('A-DELAY — USPTO Processing Breakdown (37 CFR 1.702(a))')}
+    <p style="padding:6px 12px;font-size:11px;color:#666;border-bottom:1px solid #f2efe8">USPTO failed to act within statutory periods. Each qualifying period adds A-delay days.</p>
+    <table><tr><th>Date</th><th>Event</th><th>Days</th></tr>${aRows}</table>
+    <div style="padding:6px 12px;font-size:11.5px;font-weight:700;border-top:1px solid #e8e3d8">Total A-Delay: <span class="${t.a_days>0?'red':'grn'}">${t.a_days} days</span></div>
+  </div>
+
+  <!-- B-Delay -->
+  <div class="sec">${secHdr('B-DELAY — 3-Year Rule (37 CFR 1.702(b))')}
+    <table><tr><th>Component</th><th>Value</th></tr>
+    ${row2('Filing Date',fmt(d.filing_date))}
+    ${row2('3-Year Deadline',fmt(bDetail.three_year_deadline||d.b_three_year_deadline))}
+    ${row2('Actual Issue Date',fmt(d.grant_date))}
+    ${row2('B-Delay Days',fmtN(t.b_days),t.b_days>0?'red':'grn')}
+    </table>
+    <p style="padding:6px 12px;font-size:11px;color:#666">B-Delay applies when the patent issues more than 3 years after the actual filing date, excluding time consumed by applicant delays, RCEs, or interference/secrecy proceedings.</p>
+  </div>
+
+  <!-- C-Delay -->
+  <div class="sec">${secHdr('C-DELAY — Secrecy / Interference (37 CFR 1.702(c-e))')}
+    <table><tr><th>Component</th><th>Value</th></tr>
+    ${row2('C-Delay Days',fmtN(t.c_days))}
+    </table>
+    <p style="padding:6px 12px;font-size:11px;color:#666">C-Delay covers periods of secrecy orders, interferences, or derivation proceedings.</p>
+  </div>
+
+  <!-- Applicant Delay -->
+  <div class="sec">${secHdr('APPLICANT DELAY — 37 CFR 1.704 Deductions')}
+    <p style="padding:6px 12px;font-size:11px;color:#666;border-bottom:1px solid #f2efe8">Days deducted from PTA for applicant-caused delays (late responses, extensions of time, etc.).</p>
+    <table><tr><th>Date</th><th>Event</th><th>Days Deducted</th></tr>${appDelRows}</table>
+    <div style="padding:6px 12px;font-size:11.5px;font-weight:700;border-top:1px solid #e8e3d8">Total Applicant Delay: <span class="red">−${t.app_delay} days</span></div>
+  </div>
+
+  <!-- USPTO vs Calculated Comparison -->
+  <div class="sec">${secHdr('USPTO vs CALCULATED — Side-by-Side')}
+    <table><tr><th>Component</th><th>Calculated</th><th>USPTO Official</th><th>Difference</th></tr>
+    <tr><td>A-Delay</td><td class="mono">${t.a_days}</td><td class="mono">${u.a_days||'—'}</td><td class="mono ${(t.a_days-(u.a_days||0))!==0?'red':''}">${(t.a_days-(u.a_days||0))!==0?(t.a_days-(u.a_days||0)>0?'+':'')+(t.a_days-(u.a_days||0)):'✓'}</td></tr>
+    <tr><td>B-Delay</td><td class="mono">${t.b_days}</td><td class="mono">${u.b_days||'—'}</td><td class="mono ${(t.b_days-(u.b_days||0))!==0?'red':''}">${(t.b_days-(u.b_days||0))!==0?(t.b_days-(u.b_days||0)>0?'+':'')+(t.b_days-(u.b_days||0)):'✓'}</td></tr>
+    <tr><td>C-Delay</td><td class="mono">${t.c_days}</td><td class="mono">${u.c_days||'—'}</td><td class="mono">${(t.c_days-(u.c_days||0))!==0?(t.c_days-(u.c_days||0)>0?'+':'')+(t.c_days-(u.c_days||0)):'✓'}</td></tr>
+    <tr><td>Overlap</td><td class="mono">−${t.overlap_days}</td><td class="mono">${u.overlap_days!==undefined?'−'+u.overlap_days:'—'}</td><td class="mono">—</td></tr>
+    <tr><td>Applicant Delay</td><td class="mono">−${t.app_delay}</td><td class="mono">${u.app_delay!==undefined?'−'+u.app_delay:'—'}</td><td class="mono">—</td></tr>
+    <tr class="tot-row"><td class="gold">TOTAL PTA</td><td class="mono gold">${t.total_pta} days</td><td class="mono" style="color:#3a7ec5">${u.total_pta} days</td><td class="mono ${diff!==0?'red':'grn'}">${diff===0?'✓ Match':(diff>0?'+':'')+diff}</td></tr>
+    </table>
+  </div>
+
+  ${tdSection}
+  ${maintSection}
+
+  <div class="disclaimer">⚠ <strong>Educational tool only.</strong> This report is generated by EaseIP's Intelligent PTA Calculator and is not an official USPTO determination. Results may differ from USPTO's official PTA due to internal mailing rules, federal holidays, PTA petitions, or interim adjustments. Always verify patent term and expiration dates with official USPTO records and consult qualified patent counsel for legal decisions. © 2026 EaseIP Pvt Ltd. All Rights Reserved.</div>
+
+  <div class="print-btn">
+    <button onclick="window.print()" style="padding:10px 32px;background:#2d2d2d;color:#c5a059;border:1.5px solid #c5a059;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;margin-right:10px">
+      🖨 PRINT / SAVE AS PDF
+    </button>
+    <button onclick="window.close()" style="padding:10px 20px;background:#fff;color:#888;border:1.5px solid #ddd;border-radius:6px;font-size:12px;cursor:pointer">
+      ✕ Close
+    </button>
+  </div>
+  </body></html>`);
+  printWin.document.close();
+  printWin.focus();
+}
+
+// Legacy alias kept for any remaining references
+function printReport() { printFullReport(); }
+
+
+/* ══════════════════════════════════════════════
+   DOCUMENTS & TRANSACTIONS LOADER
+══════════════════════════════════════════════ */
+async function loadDocsTransactions(appNum) {
+  // Show loading state in both panels
+  document.getElementById('docsBody').innerHTML =
+    '<div class="rd-empty" style="padding:20px;text-align:center">⏳ Loading documents…</div>';
+  document.getElementById('transBody').innerHTML =
+    '<div class="rd-empty" style="padding:20px;text-align:center">⏳ Loading transactions…</div>';
+
+  try {
+    const clean = appNum.replace(/[/,\s]/g,'');
+    const resp  = await fetch('/docs_transactions/' + encodeURIComponent(appNum));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data  = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    renderDocuments(data.documents || []);
+    renderTransactions(data.transactions || []);
+  } catch(err) {
+    document.getElementById('docsBody').innerHTML =
+      `<div class="rd-empty" style="color:#c0392b;padding:16px">⚠️ Could not load documents: ${err.message}</div>`;
+    document.getElementById('transBody').innerHTML =
+      `<div class="rd-empty" style="color:#c0392b;padding:16px">⚠️ Could not load transactions: ${err.message}</div>`;
+  }
+}
+
+/* ── Full-page overlay helpers ── */
+let _fullPageData = {docs:[], trans:[]};
+
+function openFullPage(type) {
+  const overlay = document.getElementById('fpOverlay');
+  const title   = document.getElementById('fpTitle');
+  const content = document.getElementById('fpContent');
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  if (type === 'docs') {
+    title.textContent = '📄 Document History — ' + (activeAppNum||'');
+    const dirColor = d => d === 'INCOMING' ? '#27ae60' : d === 'OUTGOING' ? '#2980b9' : '#888';
+    const dirLabel = d => d === 'INCOMING' ? '↓ IN' : d === 'OUTGOING' ? '↑ OUT' : d || '—';
+    let rows = `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
+      <thead><tr style="background:var(--dark);color:var(--gold);text-align:left">
+        <th style="padding:10px 12px;width:36px"><input type="checkbox" id="cbAll" class="doc-cb" title="Select all" onchange="toggleAllDocs(this)"></th>
+        <th style="padding:10px 12px">Code</th>
+        <th style="padding:10px 12px">Description</th>
+        <th style="padding:10px 12px">Date</th>
+        <th style="padding:10px 12px">Dir</th>
+        <th style="padding:10px 12px">Pages</th>
+        <th style="padding:10px 12px">Actions</th>
+      </tr></thead><tbody>`;
+    const TD_CODES = new Set(['TDSC','TD','TDIN','TDNP','TDAP','TDWD','TDWIT']);
+    _fullPageData.docs.forEach((doc,i) => {
+      const appEnc      = encodeURIComponent(activeAppNum||'');
+      const hasIdentifier = !!doc.identifier;
+      // Show buttons for any doc with an identifier — page count is often missing for TD forms
+      const fmts     = (doc.formats && doc.formats.length) ? doc.formats : (hasIdentifier ? ['pdf'] : []);
+      const pdfUrl   = (hasIdentifier && fmts.includes('pdf'))  ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=pdf`  : '';
+      const docxUrl  = (hasIdentifier && fmts.includes('docx')) ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=docx` : '';
+      const xmlUrl   = (hasIdentifier && fmts.includes('xml'))  ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=xml`  : '';
+      const isTD     = TD_CODES.has((doc.code||'').toUpperCase()) ||
+                       (doc.description||'').toLowerCase().includes('terminal disclaimer');
+
+      const bg = i%2===0 ? '#fff' : (isTD ? '#fff8ee' : '#faf8f2');
+      const tdBadge = isTD ? `<span style="background:#c9a84c;color:#fff;border-radius:3px;padding:1px 5px;font-size:.58rem;font-weight:700;margin-left:4px" title="Terminal Disclaimer">TD</span>` : '';
+      rows += `<tr style="background:${bg};border-bottom:1px solid #eee${isTD?';border-left:3px solid #c9a84c':''}" data-docid="${doc.identifier||''}">
+        <td style="padding:9px 12px;text-align:center">${hasIdentifier ? `<input type="checkbox" class="doc-cb bulk-cb" data-id="${doc.identifier}" onchange="updateBulkBar()">` : ''}</td>
+        <td style="padding:9px 12px;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:.75rem">${doc.code||'—'}${tdBadge}</td>
+        <td style="padding:9px 12px;color:#333">${doc.description||'—'}</td>
+        <td style="padding:9px 12px;white-space:nowrap;color:#555">📅 ${doc.date||'—'}</td>
+        <td style="padding:9px 12px"><span style="background:${dirColor(doc.direction)};color:#fff;border-radius:3px;padding:2px 7px;font-size:.65rem;font-weight:700">${dirLabel(doc.direction)}</span></td>
+        <td style="padding:9px 12px;color:#777">${doc.pages ? '📄 '+doc.pages+' pg' : '<span style="color:#bbb;font-size:.65rem">—</span>'}</td>
+        <td style="padding:9px 12px;white-space:nowrap">
+          ${(pdfUrl || docxUrl || xmlUrl) ? `
+            <div class="fmt-group">
+              ${pdfUrl ? `<div class="fmt-badge">
+                <button class="fmt-btn pdf">PDF <span class="fmt-arrow">▾</span></button>
+                <div class="fmt-dropdown">
+                  <a href="${pdfUrl}" target="_blank"><span class="dd-icon">👁</span> Preview</a>
+                  <a href="${pdfUrl}&dl=1" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+                </div>
+              </div>` : ''}
+              ${docxUrl ? `<div class="fmt-badge">
+                <button class="fmt-btn docx">DOCX <span class="fmt-arrow">▾</span></button>
+                <div class="fmt-dropdown">
+                  <a href="${docxUrl}" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+                </div>
+              </div>` : ''}
+              ${xmlUrl ? `<div class="fmt-badge">
+                <button class="fmt-btn xml">XML <span class="fmt-arrow">▾</span></button>
+                <div class="fmt-dropdown">
+                  <a href="${xmlUrl}" target="_blank"><span class="dd-icon">👁</span> Preview</a>
+                  <a href="${xmlUrl}&dl=1" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+                </div>
+              </div>` : ''}
+            </div>
+          ` : '<span style="color:#aaa;font-size:.68rem;font-style:italic">No file</span>'}
+        </td>
+      </tr>`;
+    });
+    rows += '</tbody></table>';
+    content.innerHTML = rows;
+
+  } else {
+    title.textContent = '🔄 Transaction History — ' + (activeAppNum||'');
+    let rows = `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
+      <thead><tr style="background:var(--dark);color:var(--gold);text-align:left">
+        <th style="padding:10px 12px">Event Code</th>
+        <th style="padding:10px 12px">Description</th>
+        <th style="padding:10px 12px">Date</th>
+      </tr></thead><tbody>`;
+    _fullPageData.trans.forEach((t,i) => {
+      const bg = i%2===0 ? '#fff' : '#faf8f2';
+      rows += `<tr style="background:${bg};border-bottom:1px solid #eee">
+        <td style="padding:9px 12px;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:.75rem">${t.code||'—'}</td>
+        <td style="padding:9px 12px;color:#333">${t.description||'—'}</td>
+        <td style="padding:9px 12px;white-space:nowrap;color:#555">📅 ${t.date||'—'}</td>
+      </tr>`;
+    });
+    rows += '</tbody></table>';
+    content.innerHTML = rows;
+  }
+}
+
+function closeFullPage() {
+  document.getElementById('fpOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+/* ── Inject TD documents into the Raw Dates left panel ── */
+/* ── Inject TD documents into the Raw Dates left panel ──
+   Uses the SAME row format as the Documents sidebar so it looks identical. */
+function renderTDDocsInPanel(docs) {
+  const container = document.getElementById('tdDocFilesList');
+  if (!container) return;   // panel not rendered (no TDs detected on this app)
+
+  /* Match by code OR by description — USPTO uses many different codes (TDSC, DIST.E.FILE, DISQ.E.FILE, etc.) */
+  const TD_CODES_PANEL = new Set(['TDSC','TD','TDIN','TDNP','TDAP','TDWD','TDWIT']);
+  const isTDDoc = d => TD_CODES_PANEL.has((d.code||'').toUpperCase()) ||
+                       (d.description||'').toLowerCase().includes('terminal disclaimer');
+  const isWDDoc = d => (d.code||'').toUpperCase().startsWith('TDW') ||
+                       ((d.description||'').toLowerCase().includes('terminal disclaimer') &&
+                        (d.description||'').toLowerCase().includes('withdraw'));
+  const tdDocs = docs.filter(isTDDoc);
+
+  if (!tdDocs.length) {
+    container.innerHTML = '<div style="padding:8px 10px;font-size:.68rem;color:#bbb;font-style:italic">No TD document files found in filing history.</div>';
+    return;
+  }
+
+  const dirColor = d => d === 'INCOMING' ? '#27ae60' : d === 'OUTGOING' ? '#2980b9' : '#888';
+  const dirLabel = d => d === 'INCOMING' ? '↓ IN' : d === 'OUTGOING' ? '↑ OUT' : d || '—';
+  const appEnc   = encodeURIComponent(activeAppNum||'');
+
+  let h = '';
+  tdDocs.forEach(doc => {
+    const hasIdentifier = !!doc.identifier;
+    const fmts   = (doc.formats && doc.formats.length) ? doc.formats : (hasIdentifier ? ['pdf'] : []);
+    const pdfUrl = (hasIdentifier && fmts.includes('pdf'))  ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=pdf`  : '';
+    const docxUrl= (hasIdentifier && fmts.includes('docx')) ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=docx` : '';
+    const xmlUrl = (hasIdentifier && fmts.includes('xml'))  ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=xml`  : '';
+    const isWD   = isWDDoc(doc);
+    const tdPill = isWD
+      ? `<span style="background:#aaa;color:#fff;border-radius:3px;padding:0 4px;font-size:.55rem;font-weight:700;margin-left:3px">WD</span>`
+      : `<span style="background:#c9a84c;color:#fff;border-radius:3px;padding:0 4px;font-size:.55rem;font-weight:700;margin-left:3px">TD</span>`;
+
+    /* Identical markup to renderDocuments() sidebar rows */
+    h += `<div style="padding:9px 12px;border-bottom:1px solid #f0ece0;font-size:.72rem;line-height:1.5;${isWD?'':'background:#fff9ee;border-left:3px solid #c9a84c'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--dark);font-size:.68rem">${doc.code||'—'}${tdPill}</span>
+        <span style="background:${dirColor(doc.direction)};color:#fff;border-radius:3px;padding:1px 6px;font-size:.6rem;font-weight:700;flex-shrink:0">${dirLabel(doc.direction)}</span>
+      </div>
+      <div style="color:#444;margin:2px 0">${doc.description||'—'}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;color:#888;font-size:.65rem;margin-top:4px">
+        <span>📅 ${doc.date||'—'} ${doc.pages ? '· 📄 '+doc.pages+' pg' : ''}</span>
+        ${(pdfUrl || docxUrl || xmlUrl) ? `
+          <div class="fmt-group" style="flex-shrink:0">
+            ${pdfUrl ? `<div class="fmt-badge">
+              <button class="fmt-btn pdf">PDF <span class="fmt-arrow">▾</span></button>
+              <div class="fmt-dropdown">
+                <a href="${pdfUrl}" target="_blank"><span class="dd-icon">👁</span> Preview</a>
+                <a href="${pdfUrl}&dl=1" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+              </div>
+            </div>` : ''}
+            ${docxUrl ? `<div class="fmt-badge">
+              <button class="fmt-btn docx">DOCX <span class="fmt-arrow">▾</span></button>
+              <div class="fmt-dropdown">
+                <a href="${docxUrl}" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+              </div>
+            </div>` : ''}
+            ${xmlUrl ? `<div class="fmt-badge">
+              <button class="fmt-btn xml">XML <span class="fmt-arrow">▾</span></button>
+              <div class="fmt-dropdown">
+                <a href="${xmlUrl}" target="_blank"><span class="dd-icon">👁</span> Preview</a>
+                <a href="${xmlUrl}&dl=1" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+              </div>
+            </div>` : ''}
+          </div>` : `<span style="color:#bbb;font-size:.63rem;font-style:italic">No file</span>`}
+      </div>
+    </div>`;
+  });
+  container.innerHTML = h;
+}
+
+function renderDocuments(docs) {
+  _fullPageData.docs = docs;
+  renderTDDocsInPanel(docs);   // inject TD files into raw dates left panel
+  const body = document.getElementById('docsBody');
+  if (!docs.length) {
+    body.innerHTML = '<div class="rd-empty">No documents found for this application.</div>';
+    return;
+  }
+  const dirColor = d => d === 'INCOMING' ? '#27ae60' : d === 'OUTGOING' ? '#2980b9' : '#888';
+  const dirLabel = d => d === 'INCOMING' ? '↓ IN' : d === 'OUTGOING' ? '↑ OUT' : d || '—';
+  let h = `<div style="padding:8px 10px;font-size:.65rem;color:#888;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
+    <span>${docs.length} document(s) — newest first</span>
+    <button onclick="openFullPage('docs')" style="background:var(--gold);color:var(--dark);border:none;border-radius:4px;padding:3px 10px;font-size:.65rem;font-weight:700;cursor:pointer">⛶ Full Page</button>
+  </div>`;
+  const TD_CODES_SIDEBAR = new Set(['TDSC','TD','TDIN','TDNP','TDAP','TDWD','TDWIT']);
+  docs.forEach(doc => {
+    const appEnc      = encodeURIComponent(activeAppNum||'');
+    const hasIdentifier = !!doc.identifier;
+    const fmts     = (doc.formats && doc.formats.length) ? doc.formats : (hasIdentifier ? ['pdf'] : []);
+    const pdfUrl   = (hasIdentifier && fmts.includes('pdf'))  ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=pdf`  : '';
+    const docxUrl  = (hasIdentifier && fmts.includes('docx')) ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=docx` : '';
+    const xmlUrl   = (hasIdentifier && fmts.includes('xml'))  ? `/proxy_doc/${appEnc}/${doc.identifier}?fmt=xml`  : '';
+    const isTD     = TD_CODES_SIDEBAR.has((doc.code||'').toUpperCase()) ||
+                     (doc.description||'').toLowerCase().includes('terminal disclaimer');
+    const tdPill   = isTD ? `<span style="background:#c9a84c;color:#fff;border-radius:3px;padding:0 4px;font-size:.55rem;font-weight:700;margin-left:3px">TD</span>` : '';
+    h += `<div style="padding:9px 12px;border-bottom:1px solid #f0ece0;font-size:.72rem;line-height:1.5;${isTD?'background:#fff9ee;border-left:3px solid #c9a84c':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--dark);font-size:.68rem">${doc.code||'—'}${tdPill}</span>
+        <span style="background:${dirColor(doc.direction)};color:#fff;border-radius:3px;padding:1px 6px;font-size:.6rem;font-weight:700;flex-shrink:0">${dirLabel(doc.direction)}</span>
+      </div>
+      <div style="color:#444;margin:2px 0">${doc.description||'—'}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;color:#888;font-size:.65rem;margin-top:4px">
+        <span>📅 ${doc.date||'—'} ${doc.pages ? '· 📄 '+doc.pages+' pg' : ''}</span>
+        ${(pdfUrl || docxUrl || xmlUrl) ? `
+          <div class="fmt-group" style="flex-shrink:0">
+            ${pdfUrl ? `<div class="fmt-badge">
+              <button class="fmt-btn pdf">PDF <span class="fmt-arrow">▾</span></button>
+              <div class="fmt-dropdown">
+                <a href="${pdfUrl}" target="_blank"><span class="dd-icon">👁</span> Preview</a>
+                <a href="${pdfUrl}&dl=1" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+              </div>
+            </div>` : ''}
+            ${docxUrl ? `<div class="fmt-badge">
+              <button class="fmt-btn docx">DOCX <span class="fmt-arrow">▾</span></button>
+              <div class="fmt-dropdown">
+                <a href="${docxUrl}" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+              </div>
+            </div>` : ''}
+            ${xmlUrl ? `<div class="fmt-badge">
+              <button class="fmt-btn xml">XML <span class="fmt-arrow">▾</span></button>
+              <div class="fmt-dropdown">
+                <a href="${xmlUrl}" target="_blank"><span class="dd-icon">👁</span> Preview</a>
+                <a href="${xmlUrl}&dl=1" target="_blank"><span class="dd-icon">⬇</span> Download</a>
+              </div>
+            </div>` : ''}
+          </div>` : `<span style="color:#bbb;font-size:.63rem;font-style:italic">No file</span>`}
+      </div>
+    </div>`;
+  });
+  body.innerHTML = h;
+}
+
+function renderTransactions(trans) {
+  _fullPageData.trans = trans;
+  const body = document.getElementById('transBody');
+  if (!trans.length) {
+    body.innerHTML = '<div class="rd-empty">No transactions found for this application.</div>';
+    return;
+  }
+  let h = `<div style="padding:8px 10px;font-size:.65rem;color:#888;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
+    <span>${trans.length} transaction(s) — newest first</span>
+    <button onclick="openFullPage('trans')" style="background:var(--gold);color:var(--dark);border:none;border-radius:4px;padding:3px 10px;font-size:.65rem;font-weight:700;cursor:pointer">⛶ Full Page</button>
+  </div>`;
+  trans.forEach(t => {
+    h += `<div style="padding:9px 12px;border-bottom:1px solid #f0ece0;font-size:.72rem;line-height:1.5">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--dark);font-size:.68rem">${t.code||'—'}</span>
+        <span style="color:#888;font-size:.65rem;flex-shrink:0">📅 ${t.date||'—'}</span>
+      </div>
+      <div style="color:#444;margin:2px 0">${t.description||'—'}</div>
+    </div>`;
+  });
+  body.innerHTML = h;
+}
+
+
+function updateBulkBar() {
+  const cbs    = document.querySelectorAll('.bulk-cb:checked');
+  const allCbs = document.querySelectorAll('.bulk-cb');
+  const bar    = document.getElementById('bulkBar');
+  const cnt    = document.getElementById('bulkCount');
+  const selBtn = document.getElementById('bulkSelAllBtn');
+  cnt.textContent = cbs.length + ' of ' + allCbs.length + ' file' + (allCbs.length !== 1 ? 's' : '') + ' selected';
+  bar.classList.toggle('visible', cbs.length > 0);
+  if (selBtn) selBtn.textContent = (cbs.length === allCbs.length && allCbs.length > 0) ? '☐ Deselect All' : '☑ Select All';
+}
+
+function toggleAllDocs(master) {
+  document.querySelectorAll('.bulk-cb').forEach(cb => {
+    cb.checked = master.checked;
+  });
+  updateBulkBar();
+}
+
+function clearBulkSelection() {
+  document.querySelectorAll('.bulk-cb').forEach(cb => cb.checked = false);
+  const cbAll = document.getElementById('cbAll');
+  if (cbAll) cbAll.checked = false;
+  updateBulkBar();
+}
+
+function selectAllDocs() {
+  const cbs = document.querySelectorAll('.bulk-cb');
+  const allChecked = [...cbs].every(cb => cb.checked);
+  cbs.forEach(cb => cb.checked = !allChecked);
+  const cbAll = document.getElementById('cbAll');
+  if (cbAll) cbAll.checked = !allChecked;
+  // Toggle button label
+  const btn = document.getElementById('bulkSelAllBtn');
+  if (btn) btn.textContent = allChecked ? '☑ Select All' : '☐ Deselect All';
+  updateBulkBar();
+}
+
+async function bulkDownload() {
+  const cbs    = document.querySelectorAll('.bulk-cb:checked');
+  const docIds = Array.from(cbs).map(cb => cb.dataset.id).filter(Boolean);
+  if (!docIds.length) return;
+
+  const btn = document.getElementById('bulkDlBtn');
+  btn.textContent = '⏳ Preparing…';
+  btn.disabled    = true;
+
+  try {
+    const appEnc = encodeURIComponent(activeAppNum || '');
+    const resp   = await fetch(`/proxy_bulk_download/${appEnc}`, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({doc_ids: docIds})
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      alert('Bulk download failed: ' + (err.error || resp.status));
+      return;
+    }
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'bulk_documents.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    clearBulkSelection();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.textContent = '⬇ Download Selected as PDF';
+    btn.disabled    = false;
+  }
+}
+
+// ── Format badge click toggle ──
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.fmt-btn');
+  if (btn) {
+    e.stopPropagation();
+    const badge = btn.closest('.fmt-badge');
+    // Close all other open badges
+    document.querySelectorAll('.fmt-badge.open').forEach(b => {
+      if (b !== badge) b.classList.remove('open');
+    });
+    badge.classList.toggle('open');
+    return;
+  }
+  // Clicking a link inside dropdown - let it navigate, close dropdown
+  if (e.target.closest('.fmt-dropdown a')) {
+    document.querySelectorAll('.fmt-badge.open').forEach(b => b.classList.remove('open'));
+    return;
+  }
+  // Click outside closes all
+  if (!e.target.closest('.fmt-dropdown')) {
+    document.querySelectorAll('.fmt-badge.open').forEach(b => b.classList.remove('open'));
+  }
+});
+</script>
+
+<!-- ── Full-Page Overlay ── -->
+<div id="fpOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);align-items:flex-start;justify-content:center;padding:30px 20px;overflow-y:auto">
+  <div style="background:#fff;border-radius:12px;width:100%;max-width:1100px;box-shadow:0 8px 40px rgba(0,0,0,.35);overflow:hidden;min-height:200px">
+    <!-- Header -->
+    <div style="background:var(--dark);color:var(--gold);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;letter-spacing:1.5px;border-bottom:2px solid var(--gold)">
+      <span id="fpTitle">Document History</span>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button onclick="window.print()" style="background:transparent;border:1px solid var(--gold);color:var(--gold);border-radius:4px;padding:4px 12px;font-size:.72rem;cursor:pointer;font-weight:700">🖨 Print</button>
+        <button onclick="closeFullPage()" style="background:var(--gold);color:var(--dark);border:none;border-radius:4px;padding:4px 14px;font-size:.8rem;font-weight:700;cursor:pointer">✕ Close</button>
+      </div>
+    </div>
+    <!-- Bulk Selection Toolbar (shown when items are checked) -->
+    <div id="bulkBar">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="bulkSelIcon" style="width:32px;height:32px;background:rgba(201,168,76,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem">📋</div>
+        <div>
+          <div id="bulkCount" style="font-weight:700;font-size:.82rem;color:#1a1a2e">0 files selected</div>
+          <div style="font-size:.65rem;color:#7a6a3a;margin-top:1px">Check rows to select documents for bulk download</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onclick="selectAllDocs()" id="bulkSelAllBtn" style="background:transparent;border:1.5px solid #c9a84c;color:#7a6a3a;border-radius:6px;padding:5px 13px;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .15s" onmouseover="this.style.background='#fdf6e3'" onmouseout="this.style.background='transparent'">☑ Select All</button>
+        <button onclick="clearBulkSelection()" id="bulkClearBtn" style="background:transparent;border:1.5px solid #e0d5b8;color:#999;border-radius:6px;padding:5px 13px;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .15s" onmouseover="this.style.background='#fdf6e3'" onmouseout="this.style.background='transparent'">✕ Clear</button>
+        <button id="bulkDlBtn" onclick="bulkDownload()" style="background:linear-gradient(135deg,#c9a84c,#a07830);color:#fff;border:none;border-radius:6px;padding:6px 18px;font-size:.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(201,168,76,.35);transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">⬇ Download Selected</button>
+      </div>
+    </div>
+    <!-- Content -->
+    <div id="fpContent" style="padding:0;overflow-x:auto"></div>
+  </div>
+</div>
+
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           

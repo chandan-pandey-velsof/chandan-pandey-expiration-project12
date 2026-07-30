@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — EaseIP Intelligent PTA Calculator</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+html,body{height:100%;margin:0;}
+.admin-layout{display:grid;grid-template-rows:64px 1fr 36px;height:100vh;}
+.admin-body{overflow-y:auto;background:var(--surface);}
+</style>
+</head>
+<body>
+<div class="admin-layout">
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/">
+    <div class="navbar-logo-wrap">
+      <img src="{{ url_for('static', filename='logo_white.png') }}" alt="EaseIP"
+           onerror="this.src='{{ url_for('static', filename='logo.png') }}'">
+    </div>
+    <div><span class="brand-text">EASEIP · Intelligent PTA Calculator</span>
+         <span class="brand-sub">Admin Panel · User Management</span></div>
+  </a>
+  <div class="navbar-links">
+    <span class="badge-admin">ADMIN</span>
+    <a href="{{ url_for('dashboard') }}">← Dashboard</a>
+    <a href="{{ url_for('api_settings_page') }}">🔌 API Settings</a>
+    <a href="{{ url_for('logout') }}">Sign Out</a>
+  </div>
+</nav>
+
+<div class="admin-body">
+  <div class="admin-wrap">
+
+    {% if create_error %}
+    <div class="alert alert-error">{{ create_error }}</div>
+    {% endif %}
+
+    <!-- Pending Requests -->
+    <div class="admin-section">
+      <div class="admin-section-hdr">⏳ Pending Access Requests
+        {% if pending %}<span style="background:var(--red);color:#fff;font-size:.65rem;padding:1px 8px;border-radius:10px;margin-left:8px">{{ pending|length }}</span>{% endif %}
+      </div>
+      {% if pending %}
+      <table class="admin-tbl">
+        <thead><tr><th>USERNAME</th><th>EMAIL</th><th>REQUESTED</th><th>ACTIONS</th></tr></thead>
+        <tbody>
+          {% for uname, udata in pending.items() %}
+          <tr>
+            <td><strong>{{ uname }}</strong></td>
+            <td>{{ udata.email }}</td>
+            <td style="color:#aaa;font-size:.78rem">{{ udata.requested_at }}</td>
+            <td style="display:flex;gap:8px;flex-wrap:wrap">
+              <a href="{{ url_for('admin_approve', uid=uname) }}" class="btn-success">✓ Approve</a>
+              <a href="{{ url_for('admin_deny', uid=uname) }}" class="btn-danger">✕ Deny</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="no-pending">No pending requests.</div>
+      {% endif %}
+    </div>
+
+    <!-- All Users -->
+    <div class="admin-section">
+      <div class="admin-section-hdr">👥 All Users</div>
+      <table class="admin-tbl">
+        <thead><tr><th>USERNAME</th><th>EMAIL</th><th>ROLE</th><th>ACTIONS</th></tr></thead>
+        <tbody>
+          {% for uname, udata in users.items() %}
+          <tr>
+            <td><strong>{{ uname }}</strong>{% if uname==current_user %} <span style="font-size:.65rem;color:var(--gold);font-weight:700">(you)</span>{% endif %}</td>
+            <td>{{ udata.email }}</td>
+            <td><span class="badge badge-{{ udata.role }}">{{ udata.role|upper }}</span></td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap">
+              {% if uname != current_user %}
+                {% if udata.role=='user' %}
+                <a href="{{ url_for('admin_set_role', uid=uname, role='admin') }}" class="btn-blue">↑ Make Admin</a>
+                {% else %}
+                <a href="{{ url_for('admin_set_role', uid=uname, role='user') }}" class="btn-ghost" style="padding:4px 10px;font-size:.72rem">↓ Make User</a>
+                {% endif %}
+                <a href="{{ url_for('admin_delete_user', uid=uname) }}" class="btn-danger"
+                   onclick="return confirm('Delete {{ uname }}?')">✕ Delete</a>
+              {% else %}
+                <span style="color:#bbb;font-size:.75rem">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Create User -->
+    <div class="admin-section">
+      <div class="admin-section-hdr">➕ Create New User</div>
+      <div class="create-form">
+        <form method="POST" action="{{ url_for('admin_create_user') }}">
+          <div class="create-grid">
+            <div><label class="form-label">Username</label>
+              <input class="input-field" type="text" name="username" required placeholder="username"></div>
+            <div><label class="form-label">Email</label>
+              <input class="input-field" type="email" name="email" required placeholder="email@example.com"></div>
+            <div><label class="form-label">Password</label>
+              <input class="input-field" type="password" name="password" required placeholder="password"></div>
+            <div><label class="form-label">&nbsp;</label>
+              <input class="input-field" type="password" name="confirm_password" required placeholder="confirm"></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:12px">
+            <label class="form-label" style="margin:0">Role:</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer">
+              <input type="radio" name="role" value="user" checked> User</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer">
+              <input type="radio" name="role" value="admin"> Admin</label>
+            <button type="submit" class="btn-gold" style="margin-left:auto;font-size:.82rem;padding:8px 20px">Create User</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer class="footer">© 2026 EaseIP Pvt Ltd. All Rights Reserved.</footer>
+</div>
+</body>
+</html>

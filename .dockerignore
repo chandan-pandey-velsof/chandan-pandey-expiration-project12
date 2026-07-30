@@ -1,0 +1,10 @@
+# Local dev artifacts that must NOT go into the image
+.venv/
+cert.pem
+key.pem
+__pycache__/
+*.pyc
+# Ephemeral runtime state (created inside the container at runtime)
+users.json
+pending_users.json
+history.json

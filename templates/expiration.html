@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EaseIP — Patent Expiration Tool</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+html,body{height:100%;margin:0;}
+.exp-layout{display:grid;grid-template-rows:56px 1fr 34px;height:100vh;overflow:hidden;}
+
+/* ── Left panel ── */
+.exp-wrap{display:flex;flex:1;overflow:hidden;}
+.exp-left{width:242px;min-width:242px;background:var(--dark);border-right:2px solid var(--gold);
+  overflow-y:auto;display:flex;flex-direction:column;flex-shrink:0;}
+.exp-main{flex:1;overflow-y:auto;background:var(--surface);padding:22px 26px;}
+
+/* ── Left panel sections ── */
+.lp-sect{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
+.lp-title{font-family:'Rajdhani',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:1.8px;
+  color:var(--gold);text-transform:uppercase;margin-bottom:9px}
+.lp-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:6px}
+.lp-key{font-size:.63rem;color:#888;white-space:nowrap}
+.lp-val{font-size:.72rem;color:#ddd;text-align:right;word-break:break-all;max-width:145px}
+.lp-val.gold{color:var(--gold);font-weight:700}
+.lp-val.mono{font-family:'IBM Plex Mono',monospace;font-size:.68rem}
+
+/* TD doc entry */
+.td-doc-entry{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.25);
+  border-radius:6px;padding:8px 10px;margin-bottom:7px}
+.td-doc-badge{font-size:.58rem;font-weight:700;padding:1px 7px;border-radius:10px;
+  display:inline-block;margin-bottom:5px;background:rgba(201,168,76,.15);color:var(--gold);
+  border:1px solid rgba(201,168,76,.4)}
+.td-doc-badge.withdrawn{background:rgba(255,255,255,.05);color:#888;border-color:#555}
+.td-doc-info{font-size:.65rem;color:#aaa;line-height:1.6;margin-bottom:6px}
+.td-doc-info span{color:#ddd}
+.td-doc-btns{display:flex;gap:5px;flex-wrap:wrap}
+.btn-preview,.btn-dl{font-size:.63rem;padding:3px 9px;border-radius:4px;cursor:pointer;
+  font-weight:700;letter-spacing:.3px;border:1px solid;text-decoration:none;display:inline-block}
+.btn-preview{background:rgba(58,123,213,.15);color:#6bb3e8;border-color:rgba(58,123,213,.4)}
+.btn-preview:hover{background:rgba(58,123,213,.3)}
+.btn-dl{background:rgba(39,174,96,.1);color:#7dc87d;border-color:rgba(39,174,96,.35)}
+.btn-dl:hover{background:rgba(39,174,96,.25)}
+.td-cap-pill{background:rgba(39,174,96,.13);border:1px solid rgba(39,174,96,.45);border-radius:8px;
+  padding:10px 12px;margin-top:10px;text-align:center}
+.td-cap-pill .cp-label{font-size:.67rem;color:#7dc87d;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+.td-cap-pill .cp-date{font-family:'IBM Plex Mono',monospace;font-size:1rem;color:#6be8a0;font-weight:700;margin-top:3px}
+.td-unresolved{font-size:.72rem;color:#e6a817;background:rgba(230,168,23,.09);
+  border:1px solid rgba(230,168,23,.35);border-radius:6px;padding:9px 11px;margin-top:8px;line-height:1.65}
+.td-none{font-size:.72rem;color:#666;font-style:italic}
+
+/* ── TD Auto-Resolve main card ── */
+.td-autoresolve-card{background:var(--card);border:1px solid rgba(230,168,23,.4);
+  border-radius:12px;overflow:hidden;margin-bottom:20px}
+.btn-run-ar{padding:10px 24px;background:rgba(230,168,23,.2);
+  border:1px solid rgba(230,168,23,.6);border-radius:7px;
+  color:#e6a817;font-size:.82rem;font-weight:700;letter-spacing:.4px;cursor:pointer;
+  transition:background .15s}
+.btn-run-ar:disabled{opacity:.45;cursor:not-allowed}
+.btn-run-ar:not(:disabled):hover{background:rgba(230,168,23,.38)}
+
+/* ── TD Auto-Resolve chain visualization (left panel button) ── */
+.btn-auto-resolve{display:block;width:100%;margin-top:10px;padding:8px 6px;
+  background:rgba(230,168,23,.18);border:1px solid rgba(230,168,23,.55);border-radius:6px;
+  color:#e6a817;font-size:.72rem;font-weight:700;cursor:pointer;text-align:center;letter-spacing:.3px}
+.btn-auto-resolve:disabled{opacity:.45;cursor:not-allowed}
+.btn-auto-resolve:not(:disabled):hover{background:rgba(230,168,23,.32)}
+
+/* ── Chain visualization (both panel + main card) ── */
+.td-chain-wrap{margin-top:12px}
+.td-chain-title{font-size:.67rem;color:#aaa;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;
+  border-bottom:1px solid rgba(255,255,255,.08)}
+
+/* Chain nodes */
+.td-chain-node{position:relative;padding:11px 14px;border-radius:8px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  line-height:1.55;margin-bottom:3px}
+.td-chain-node.is-root{
+  border-color:rgba(39,174,96,.5);background:rgba(39,174,96,.09);
+  box-shadow:0 0 0 1px rgba(39,174,96,.15)}
+.td-chain-node .cn-label{
+  font-weight:700;color:#e0e0e0;font-size:.8rem;
+  display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.td-chain-node .cn-exp{
+  font-family:'IBM Plex Mono',monospace;color:#6be8a0;font-size:.78rem;
+  font-weight:600}
+.td-chain-node .cn-filed{
+  font-family:'IBM Plex Mono',monospace;color:#999;font-size:.72rem}
+.td-chain-node .cn-method{
+  font-size:.68rem;color:#888;margin-top:5px;
+  padding-top:5px;border-top:1px solid rgba(255,255,255,.06)}
+
+/* Arrow connector between nodes */
+.td-chain-arrow{
+  display:flex;flex-direction:column;align-items:center;
+  margin:2px 0;color:#555;line-height:1}
+.td-chain-arrow .ar-line{width:1px;height:10px;background:rgba(255,255,255,.12)}
+.td-chain-arrow .ar-tip{font-size:.85rem;color:#666;margin-top:-2px}
+
+/* Status banners */
+.td-chain-resolved{
+  margin-top:12px;padding:11px 14px;border-radius:8px;
+  background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.4);
+  font-size:.78rem;color:#7dc87d;text-align:center;line-height:1.5}
+.td-chain-resolved strong{color:#6be8a0;font-family:'IBM Plex Mono',monospace;font-size:.88rem}
+.td-chain-unresolved{
+  margin-top:12px;padding:11px 14px;border-radius:8px;
+  background:rgba(230,168,23,.09);border:1px solid rgba(230,168,23,.35);
+  font-size:.75rem;color:#e6a817;text-align:center;line-height:1.6}
+.td-chain-unresolved small{display:block;font-size:.68rem;color:#a08040;margin-top:4px}
+
+/* ── Main card chain overrides (light background context) ── */
+/* Left panel is dark → keep existing colors. Main card body is light → override here. */
+#tdARChainMain .td-chain-wrap{margin-top:4px}
+#tdARChainMain .td-chain-title{color:#555;border-bottom-color:rgba(0,0,0,.1)}
+#tdARChainMain .td-chain-node{
+  background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.13)}
+#tdARChainMain .td-chain-node.is-root{
+  background:rgba(39,174,96,.08);border-color:rgba(39,174,96,.45);
+  box-shadow:0 0 0 1px rgba(39,174,96,.12)}
+#tdARChainMain .td-chain-node .cn-label{color:#1a1a1a}
+#tdARChainMain .td-chain-node .cn-exp{color:#1a7a45}
+#tdARChainMain .td-chain-node .cn-filed{color:#555}
+#tdARChainMain .td-chain-node .cn-method{
+  color:#555;border-top-color:rgba(0,0,0,.08)}
+#tdARChainMain .td-chain-arrow .ar-line{background:rgba(0,0,0,.15)}
+#tdARChainMain .td-chain-arrow .ar-tip{color:#777}
+#tdARChainMain .td-chain-resolved{
+  background:rgba(39,174,96,.1);border-color:rgba(39,174,96,.45);color:#1a6a35}
+#tdARChainMain .td-chain-resolved strong{
+  color:#0d5a2a;font-size:.92rem}
+#tdARChainMain .td-chain-unresolved{
+  color:#8a5000;background:rgba(230,168,23,.1);border-color:rgba(230,168,23,.45)}
+#tdARChainMain .td-chain-unresolved small{color:#8a5000}
+/* Tree nodes in main card (light bg) */
+#tdARChainMain .td-tree-node{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.13)}
+#tdARChainMain .td-tree-node.is-root-node{background:rgba(39,174,96,.08);border-color:rgba(39,174,96,.4)}
+#tdARChainMain .td-tree-node.is-cap-node{background:rgba(197,160,89,.07);border-color:rgba(197,160,89,.5)}
+#tdARChainMain .td-tree-children{border-top-color:rgba(0,0,0,.12)}
+#tdARChainMain .td-tree-branch::before{background:rgba(0,0,0,.15)}
+
+/* ── TD Tree visualization ── */
+.td-tree-wrap{margin-top:14px}
+.td-tree-node{padding:12px 16px;border-radius:8px;background:rgba(0,0,0,.04);
+  border:1px solid rgba(0,0,0,.13);margin-bottom:0}
+.td-tree-node.is-root-node{background:rgba(39,174,96,.09);border-color:rgba(39,174,96,.45);
+  box-shadow:0 0 0 1px rgba(39,174,96,.12)}
+.td-tree-node.is-cap-node{border-color:rgba(197,160,89,.6);background:rgba(197,160,89,.06)}
+.td-tree-children{display:flex;gap:12px;margin-top:8px;padding-top:8px;
+  border-top:1px dashed rgba(0,0,0,.12)}
+.td-tree-branch{flex:1;min-width:0;position:relative}
+.td-tree-branch::before{content:'';position:absolute;top:-8px;left:50%;
+  width:1px;height:8px;background:rgba(0,0,0,.15)}
+.td-branch-label{font-size:.63rem;font-weight:700;letter-spacing:.5px;
+  text-transform:uppercase;color:#888;text-align:center;margin-bottom:6px}
+.td-branch-label.is-cap{color:#1a7a45;font-weight:800}
+.td-explanation-box{margin-top:16px;padding:14px 18px;border-radius:8px;
+  background:#f8f6f0;border:1px solid rgba(0,0,0,.1);font-size:.78rem;
+  color:#333;line-height:1.8}
+.td-explanation-box .expl-heading{font-size:.7rem;font-weight:800;letter-spacing:.8px;
+  text-transform:uppercase;color:#555;margin-bottom:8px}
+.td-explanation-box .expl-verdict{margin-top:10px;padding:8px 12px;border-radius:6px;
+  font-weight:700;font-size:.8rem}
+.td-explanation-box .expl-verdict.no-effect{background:rgba(39,174,96,.1);
+  border:1px solid rgba(39,174,96,.3);color:#1a6a35}
+.td-explanation-box .expl-verdict.shortens{background:rgba(200,50,50,.07);
+  border:1px solid rgba(200,50,50,.25);color:#8a0000}
+/* ── Search bar ── */
+.search-bar{background:#fff;border-bottom:1.5px solid #e8e3d8;padding:10px 20px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sb-tabs{display:flex}
+.sb-tab{padding:6px 13px;border:1.5px solid #e0dbd0;background:#fafaf8;font-size:.72rem;
+  font-weight:700;cursor:pointer;color:#999;letter-spacing:.5px}
+.sb-tab:first-child{border-radius:6px 0 0 6px}
+.sb-tab:last-child{border-radius:0 6px 6px 0;border-left:none}
+.sb-tab.active{background:var(--dark);color:var(--gold);border-color:var(--dark)}
+.search-bar input{flex:1;max-width:480px;padding:8px 13px;border:1.5px solid #e0dbd0;
+  border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:.88rem;background:#fafaf8;
+  color:var(--dark);outline:none}
+.search-bar input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,160,89,.1)}
+.btn-run{background:var(--gold);color:var(--dark);border:none;border-radius:6px;
+  padding:8px 20px;font-weight:700;font-size:.8rem;letter-spacing:.5px;cursor:pointer;white-space:nowrap}
+.btn-run:hover{background:var(--gold-dark,#a07830)}
+.btn-run:disabled{opacity:.5;cursor:not-allowed}
+.search-err{font-size:.72rem;color:var(--red);margin-left:6px}
+
+/* ── Main content cards (calculator.html style) ── */
+.calc-card{background:#fff;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,.07);overflow:hidden;margin-bottom:18px}
+.calc-card-hdr{background:var(--dark);color:var(--gold);padding:11px 18px;
+  font-family:'Rajdhani',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:2px;
+  border-bottom:2px solid var(--gold);display:flex;justify-content:space-between;align-items:center}
+.calc-card-body{padding:20px 22px}
+
+/* Result hero */
+.result-hero{background:linear-gradient(135deg,#1e2a1e,#152015);border:2px solid var(--green);
+  border-radius:10px;padding:20px;text-align:center;margin-bottom:18px}
+.result-hero.td-capped{background:linear-gradient(135deg,#2a1e00,#1e1500);border-color:var(--gold)}
+.rh-label{font-size:.6rem;letter-spacing:2px;color:#6be8a0;margin-bottom:5px;font-weight:700;text-transform:uppercase}
+.rh-label.td{color:var(--gold)}
+.rh-date{font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:700;color:#fff;line-height:1}
+.rh-sub{font-size:.7rem;color:#6be8a0;margin-top:5px}
+.rh-sub.td{color:var(--gold)}
+
+/* Patent info bar */
+.pat-info-bar{display:flex;gap:20px;flex-wrap:wrap;background:#fff;border:1.5px solid #e8e3d8;
+  border-radius:10px;padding:12px 18px;margin-bottom:18px;align-items:center}
+.pi-item .pi-label{font-size:.6rem;color:#bbb;font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px}
+.pi-item .pi-val{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--dark);font-weight:600}
+.pi-item .pi-val.gold{color:var(--gold-dim)}
+.pi-full-analysis{margin-left:auto;font-size:.7rem;color:var(--gold-dim);font-weight:700;text-decoration:none}
+.pi-full-analysis:hover{text-decoration:underline}
+
+/* Summary chips */
+.sum-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.sum-chip{background:#f8f5ee;border:1px solid #e8e3d8;border-radius:8px;padding:11px 14px;text-align:center}
+.sum-chip .sc-l{font-size:.58rem;color:#bbb;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.sum-chip .sc-v{font-family:'IBM Plex Mono',monospace;font-size:.86rem;font-weight:700;color:var(--dark)}
+
+/* Maintenance table */
+.maint-card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e8e3d8;margin-bottom:18px}
+.maint-hdr{background:#2d3a2d;color:#6be8a0;padding:10px 16px;font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:2px}
+.maint-tbl{width:100%;border-collapse:collapse}
+.maint-tbl th{background:#f5f2eb;color:#666;padding:8px 12px;font-size:.65rem;font-weight:700;letter-spacing:1px;text-align:left;border-bottom:1.5px solid #e8e3d8}
+.maint-tbl td{padding:10px 12px;border-bottom:1px solid #f2efe8;font-size:.78rem;vertical-align:middle}
+.maint-tbl tr:last-child td{border-bottom:none}
+.maint-tbl .grace{color:var(--red);font-weight:700}
+.maint-tbl .note-sm{font-size:.65rem;color:#aaa;margin-top:2px}
+.status-passed{display:inline-flex;align-items:center;gap:4px;background:#f0f0f0;color:#aaa;padding:2px 9px;border-radius:20px;font-size:.66rem;font-weight:700}
+.status-due{display:inline-flex;align-items:center;gap:4px;background:#fdeaea;color:var(--red);padding:2px 9px;border-radius:20px;font-size:.66px;font-weight:700;font-size:.66rem}
+.status-grace{display:inline-flex;align-items:center;gap:4px;background:#fff3cd;color:#856404;padding:2px 9px;border-radius:20px;font-size:.66rem;font-weight:700}
+.status-upcoming{display:inline-flex;align-items:center;gap:4px;background:#e8f0fb;color:var(--blue);padding:2px 9px;border-radius:20px;font-size:.66rem;font-weight:700}
+.td-badge-not-needed{background:#e8e8e8;color:#999;padding:2px 8px;border-radius:10px;font-size:.63rem;font-weight:700}
+.td-badge-partial{background:#fff3cd;color:#856404;padding:2px 8px;border-radius:10px;font-size:.63rem;font-weight:700}
+.td-badge-needed{background:#eaf5ee;color:var(--green);padding:2px 8px;border-radius:10px;font-size:.63rem;font-weight:700}
+.td-note-row{font-size:.65rem;color:#aaa;font-style:italic;margin-top:2px}
+.maint-note{font-size:.72rem;color:#666;padding:10px 16px;border-top:1px solid #f2efe8}
+
+/* Manual calculator (matches calculator.html) */
+.input-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:18px}
+.cf label{display:block;font-size:.67rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+.cf input,.cf select{width:100%;padding:9px 12px;border:1.5px solid #e0dbd0;border-radius:7px;
+  font-family:'IBM Plex Mono',monospace;font-size:.87rem;background:#fafaf8;color:var(--dark)}
+.cf input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,160,89,.1)}
+.td-wrap{background:#fff8e8;border:1.5px solid rgba(197,160,89,.4);border-radius:8px;padding:12px 14px;margin-bottom:18px}
+.td-wrap-label{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.td-check-lbl{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.7rem;font-weight:700;color:#7a4d00;text-transform:uppercase;letter-spacing:.8px}
+.td-check-lbl input[type=checkbox]{width:15px;height:15px;accent-color:var(--gold);cursor:pointer}
+.td-rule{font-size:.64rem;color:#b09050;margin-left:4px}
+.td-inputs{display:none}
+.lookup-row{display:flex;gap:8px;align-items:stretch}
+.lookup-row input{flex:1;padding:9px 12px;border:1.5px solid rgba(197,160,89,.6);border-radius:7px;
+  font-family:'IBM Plex Mono',monospace;font-size:.86rem;background:#fffdf5;color:#333}
+.lookup-row input:focus{outline:none;border-color:var(--gold)}
+.btn-lookup{padding:9px 16px;background:var(--gold);color:var(--dark);border:none;
+  border-radius:7px;font-size:.76rem;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.5px;flex-shrink:0}
+.btn-lookup:hover{filter:brightness(1.1)}
+.btn-lookup:disabled{opacity:.5;cursor:not-allowed}
+.lookup-status{display:none;margin-top:7px;font-size:.7rem;padding:7px 10px;border-radius:5px;
+  border-left:3px solid var(--gold);background:#fffdf0;color:#7a4d00;line-height:1.5}
+.td-date-field{margin-top:12px}
+.td-alert{display:none;margin-top:8px;font-size:.72rem;color:#7a4d00;background:#fff3d0;
+  border-radius:6px;padding:7px 10px;border-left:3px solid var(--gold);line-height:1.5}
+.td-hint{font-size:.68rem;color:#b09050;line-height:1.5;margin-top:8px}
+
+/* TD chip row */
+.td-chip-row{display:none;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:-10px;margin-bottom:18px}
+
+/* Empty state */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:320px;color:#bbb;gap:14px;text-align:center;padding:40px}
+.es-icon{font-size:46px;opacity:.35}
+.es-text{font-size:.82rem;line-height:1.7;max-width:380px;color:#999}
+
+/* Utility */
+.mono{font-family:'IBM Plex Mono',monospace}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid #e0dbd0;
+  border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.section-sep{font-family:'Rajdhani',sans-serif;font-size:.73rem;font-weight:700;letter-spacing:1.5px;
+  color:var(--dark);text-transform:uppercase;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.section-sep::after{content:'';flex:1;height:1px;background:#e8e3d8}
+</style>
+</head>
+<body>
+<div class="exp-layout">
+
+<!-- ══ NAV ══ -->
+<div class="dash-nav">
+  <a class="nav-brand" href="/" title="Home">
+    <div class="nav-logo-box">
+      <img src="{{ url_for('static', filename='logo_white.png') }}" alt="EaseIP"
+           onerror="this.src='{{ url_for('static', filename='logo.png') }}'">
+    </div>
+    <div>
+      <span class="nav-brand-text">EASEIP · Patent Expiration Tool</span>
+      <span class="nav-brand-sub">Expiration Date · Terminal Disclaimers · Maintenance Fees</span>
+    </div>
+  </a>
+  <div class="nav-center">
+    <div class="nav-hint">Expiry = <span>Filing + 20 Years + Official PTA</span> (capped by TD if filed)</div>
+  </div>
+  <div class="nav-right">
+    <a id="linkFullDash" href="/dashboard"
+       style="background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.4);
+              border-radius:5px;padding:5px 13px;font-size:.7rem;font-weight:700;text-decoration:none;letter-spacing:.5px;margin-right:6px">
+      🔬 Full PTA Analysis →
+    </a>
+    <div class="nav-user-chip">
+      <div class="role-dot" style="background:{% if role=='admin' %}var(--gold){% else %}#666{% endif %}"></div>
+      {{ username }}
+    </div>
+    <a href="{{ url_for('logout') }}" class="nav-menu-btn">Sign Out</a>
+  </div>
+</div>
+
+<!-- ══ BODY ══ -->
+<div class="exp-wrap">
+
+  <!-- ─── LEFT PANEL ─────────────────────────────────── -->
+  <div class="exp-left">
+
+    <div class="lp-sect" id="lpApp" style="display:none">
+      <div class="lp-title">Application <span id="lpSearchModeBadge" style="font-size:.58rem;font-weight:700;padding:1px 7px;border-radius:10px;background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.35);letter-spacing:.3px;float:right;margin-top:1px"></span></div>
+      <div class="lp-row"><span class="lp-key">APP NO.</span><span class="lp-val gold" id="lpAppNum">—</span></div>
+      <div class="lp-row"><span class="lp-key">PATENT NO.</span><span class="lp-val" id="lpPatNum">—</span></div>
+      <div class="lp-row"><span class="lp-key">APPLICANT</span><span class="lp-val" id="lpApplicant">—</span></div>
+      <div class="lp-row"><span class="lp-key">STATUS</span><span class="lp-val" id="lpStatus">—</span></div>
+    </div>
+
+    <div class="lp-sect" id="lpDates" style="display:none">
+      <div class="lp-title">Key Dates</div>
+      <div class="lp-row"><span class="lp-key">FILING</span><span class="lp-val mono" id="lpFiling">—</span></div>
+      <div class="lp-row"><span class="lp-key">GRANT</span><span class="lp-val mono" id="lpGrant">—</span></div>
+      <div class="lp-row"><span class="lp-key">OFFICIAL PTA</span><span class="lp-val gold" id="lpPta">—</span></div>
+      <div class="lp-row"><span class="lp-key">EXPIRATION</span><span class="lp-val gold" id="lpExpiry">—</span></div>
+    </div>
+
+    <div class="lp-sect" id="lpTD" style="display:none">
+      <div class="lp-title">Terminal Disclaimer</div>
+      <div id="lpTDBody"><span class="td-none">None detected</span></div>
+    </div>
+
+    <div class="lp-sect" style="margin-top:auto;padding-bottom:18px">
+      <div class="lp-title">About</div>
+      <div style="font-size:.64rem;color:#666;line-height:1.65">
+        Uses USPTO <b style="color:#aaa">official PTA</b> — not recalculated.<br>
+        After the 2-month challenge window closes, this is the legally controlling number.<br><br>
+        <b style="color:#aaa">API access:</b><br>
+        <span style="font-family:monospace;font-size:.62rem;color:var(--gold)">GET /api/expiration/&lt;ref&gt;</span><br>
+        Header: <span style="font-family:monospace;color:#888">X-EaseIP-Api-Key</span>
+      </div>
+    </div>
+
+  </div><!-- /exp-left -->
+
+  <!-- ─── MAIN PANEL ─────────────────────────────────── -->
+  <div class="exp-main">
+
+    <!-- Search bar -->
+    <div class="search-bar" style="background:transparent;border:none;padding:0 0 18px 0">
+      <div class="sb-tabs">
+        <button id="tabApp" class="sb-tab active" onclick="setMode('app')">App No.</button>
+        <button id="tabPat" class="sb-tab" onclick="setMode('pat')">Patent No.</button>
+      </div>
+      <input id="searchInput" type="text"
+        placeholder="e.g. 14/196,999  or  9,914,979  or  US9914979"
+        onkeydown="if(event.key==='Enter')runSearch()">
+      <button class="btn-run" id="btnRun" onclick="runSearch()">🔍 Look Up</button>
+      <span id="searchErr" class="search-err"></span>
+    </div>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="es-icon">📅</div>
+      <div class="es-text">
+        Enter an application number or patent number above to calculate the expiration date.<br><br>
+        This tool uses the USPTO's <strong>official PTA</strong>, automatically detects
+        <strong>Terminal Disclaimers</strong> and shows <strong>Maintenance Fee</strong> windows.
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsWrap" style="display:none">
+
+      <!-- Patent info bar -->
+      <div class="pat-info-bar">
+        <div class="pi-item"><div class="pi-label">App No.</div><div class="pi-val" id="piApp">—</div></div>
+        <div class="pi-item"><div class="pi-label">Patent No.</div><div class="pi-val gold" id="piPat">—</div></div>
+        <div class="pi-item"><div class="pi-label">Filing</div><div class="pi-val" id="piFiling">—</div></div>
+        <div class="pi-item"><div class="pi-label">Grant</div><div class="pi-val" id="piGrant">—</div></div>
+        <div class="pi-item"><div class="pi-label">Official PTA</div><div class="pi-val" id="piPta">—</div></div>
+        <a id="linkFullAnalysis" href="#" class="pi-full-analysis">🔬 Full PTA Forensic →</a>
+      </div>
+
+      <!-- Expiration hero -->
+      <div class="result-hero" id="resultHero">
+        <div class="rh-label" id="rhlabel">Patent Expiration Date (Filing + 20yr + Official PTA)</div>
+        <div class="rh-date" id="rhDate">—</div>
+        <div class="rh-sub" id="rhSub"></div>
+      </div>
+
+      <!-- TD-capped result card (shown only when TD applied) -->
+      <div id="tdHeroCard" style="display:none;background:linear-gradient(135deg,#2a1e00,#1e1500);
+           border:2px solid var(--gold);border-radius:10px;padding:18px;text-align:center;margin-top:-10px;margin-bottom:18px">
+        <div style="font-size:.6rem;letter-spacing:2px;color:var(--gold);margin-bottom:5px;font-weight:700;text-transform:uppercase">
+          Effective Expiration (TD-Capped) — 37 CFR 1.321(c)
+        </div>
+        <div id="tdHeroDate" style="font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:700;color:#fff;line-height:1">—</div>
+        <div id="tdHeroSub" style="font-size:.7rem;color:var(--gold);margin-top:4px"></div>
+      </div>
+
+      <!-- Summary chips -->
+      <div class="sum-row" id="sumRow">
+        <div class="sum-chip"><div class="sc-l">Filing Date</div><div class="sc-v" id="scFiling">—</div></div>
+        <div class="sum-chip"><div class="sc-l">Base (20yr)</div><div class="sc-v" id="scBase">—</div></div>
+        <div class="sum-chip"><div class="sc-l">PTA Added</div><div class="sc-v" id="scPta" style="color:var(--green)">+0d</div></div>
+        <div class="sum-chip" style="background:#fff8ea;border-color:rgba(197,160,89,.4)">
+          <div class="sc-l" id="scFinalLabel">Effective Expiry</div>
+          <div class="sc-v" id="scFinal" style="color:var(--gold-dim)">—</div>
+        </div>
+      </div>
+
+      <!-- TD chips (shown only when TD applied) -->
+      <div class="td-chip-row" id="tdChipRow">
+        <div class="sum-chip" style="background:#fff3f3;border-color:rgba(200,80,80,.3)">
+          <div class="sc-l">Uncapped Expiry</div>
+          <div class="sc-v" id="tcUncapped" style="color:#bbb;text-decoration:line-through">—</div>
+        </div>
+        <div class="sum-chip" style="background:#fff8e8;border-color:rgba(197,160,89,.5)">
+          <div class="sc-l">TD Cap Date</div>
+          <div class="sc-v" id="tcCap" style="color:var(--gold-dim)">—</div>
+        </div>
+        <div class="sum-chip" style="background:#fff3d0;border-color:rgba(197,160,89,.4)">
+          <div class="sc-l">Days Forfeited</div>
+          <div class="sc-v" id="tcForfeited" style="color:#b07030">0</div>
+        </div>
+        <div class="sum-chip" style="background:#1e2a1e;border-color:rgba(60,180,100,.4)">
+          <div class="sc-l" style="color:#6be8a0">Effective Expiry</div>
+          <div class="sc-v" id="tcEffective" style="color:#6be8a0">—</div>
+        </div>
+      </div>
+
+      <!-- Maintenance Fee Table -->
+      <div class="maint-card" id="maintCard" style="display:none">
+        <div class="maint-hdr">📅 MAINTENANCE FEE SCHEDULE — Utility Patents Only</div>
+        <table class="maint-tbl">
+          <thead>
+            <tr>
+              <th>Fee</th>
+              <th>Window Opens</th>
+              <th>No Surcharge Until</th>
+              <th>Grace Period End<br><span style="font-weight:400;color:#aaa">+surcharge</span></th>
+              <th>Status</th>
+              <th id="thTD" style="display:none">TD Status</th>
+            </tr>
+          </thead>
+          <tbody id="maintBody"></tbody>
+        </table>
+        <div class="maint-note">
+          Maintenance fees are anchored to grant date and are <b>not</b> extended by PTA.
+          Failure to pay results in immediate patent expiration.
+        </div>
+      </div>
+
+      <!-- TD Auto-Resolve Card ──────────────────────── -->
+      <div class="td-autoresolve-card" id="tdAutoResolveCard" style="display:none">
+        <div class="calc-card-hdr">🔗 TERMINAL DISCLAIMER AUTO-RESOLVER
+          <span style="font-size:.68rem;font-weight:400;color:#bbb;margin-left:6px">Traces full disclaimer chain via PDF · OCR · USPTO continuity</span>
+        </div>
+        <div class="calc-card-body" style="padding:16px 20px">
+          <div id="tdARStatus" style="font-size:.78rem;color:#aaa;margin-bottom:12px;line-height:1.6">
+            Click <strong style="color:#e6a817">Run Auto-Resolve</strong> to automatically trace the terminal disclaimer chain and determine the cap date.
+          </div>
+          <button class="btn-run-ar" id="btnRunAR" onclick="autoResolveTD()">🔗 Run Auto-Resolve</button>
+          <div id="tdARChainMain" style="margin-top:16px"></div>
+        </div>
+      </div>
+
+      <!-- Manual Calculator ──────────────────────────── -->
+      <div class="section-sep">🧮 Manual Expiration Calculator</div>
+
+      <div class="calc-card">
+        <div class="calc-card-hdr">
+          🧮 MANUAL PATENT TERM CALCULATOR
+          <span style="font-size:.65rem;font-weight:400;color:#aaa">Fields auto-filled from search · edit to override</span>
+        </div>
+        <div class="calc-card-body">
+
+          <div class="input-3col">
+            <div class="cf">
+              <label>Filing Date</label>
+              <input type="date" id="cFiling" oninput="calcExp()">
+            </div>
+            <div class="cf">
+              <label>Grant Date</label>
+              <input type="date" id="cGrant" oninput="calcExp()">
+            </div>
+            <div class="cf">
+              <label>PTA Days (Official)</label>
+              <input type="number" id="cPta" value="0" min="0" placeholder="0" oninput="calcExp()">
+            </div>
+          </div>
+
+          <!-- TD section — matches calculator.html exactly -->
+          <div class="td-wrap">
+            <div class="td-wrap-label">
+              <label class="td-check-lbl">
+                <input type="checkbox" id="cTdCheck" onchange="toggleTdCalc();calcExp()">
+                Terminal Disclaimer Filed
+              </label>
+              <span class="td-rule">37 CFR 1.321(c)</span>
+            </div>
+
+            <div class="td-inputs" id="cTdInputs">
+              <!-- Step 1: Reference lookup -->
+              <div class="cf" style="margin-bottom:12px">
+                <label style="color:#b09050">Referenced Application / Patent No.
+                  <span style="font-weight:400;text-transform:none;letter-spacing:0">— enter to auto-fill expiry date</span>
+                </label>
+                <!-- Search mode mini-tabs -->
+                <div style="display:flex;gap:0;margin-bottom:6px">
+                  <button id="cTdTabApp" onclick="setCTdMode('app')"
+                    style="padding:4px 11px;font-size:.68rem;font-weight:700;cursor:pointer;letter-spacing:.4px;
+                           border:1.5px solid rgba(197,160,89,.6);border-radius:5px 0 0 5px;border-right:none;
+                           background:var(--dark);color:var(--gold)">App No.</button>
+                  <button id="cTdTabPat" onclick="setCTdMode('pat')"
+                    style="padding:4px 11px;font-size:.68rem;font-weight:700;cursor:pointer;letter-spacing:.4px;
+                           border:1.5px solid rgba(197,160,89,.6);border-radius:0 5px 5px 0;
+                           background:#fafaf8;color:#999">Patent No.</button>
+                </div>
+                <div class="lookup-row">
+                  <input type="text" id="cTdRef"
+                    placeholder="e.g. 17/449,797  or  10,123,456  or  US10123456"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();lookupCalcTD()}">
+                  <button class="btn-lookup" id="cTdLookupBtn" onclick="lookupCalcTD()">🔍 Lookup</button>
+                </div>
+                <div class="lookup-status" id="cTdLookupStatus"></div>
+              </div>
+
+              <!-- Step 2: Disclaimed-to date -->
+              <div class="cf td-date-field">
+                <label style="color:#b09050">Disclaimed-to Date
+                  <span style="font-weight:400;text-transform:none;letter-spacing:0">(parent's expiry — auto-filled or enter manually)</span>
+                </label>
+                <input type="date" id="cTdDate"
+                  style="border-color:rgba(197,160,89,.6);background:#fffdf5;width:100%;
+                         padding:9px 12px;border:1.5px solid rgba(197,160,89,.6);border-radius:7px;
+                         font-family:'IBM Plex Mono',monospace;font-size:.88rem;color:#333"
+                  oninput="calcExp()">
+              </div>
+
+              <div class="td-alert" id="cTdAlert"></div>
+            </div>
+
+            <div class="td-hint">
+              When a terminal disclaimer is filed, the effective expiration date is
+              <strong>capped at the parent patent's expiration</strong> — even if PTA would extend it further.
+              See 37 CFR 1.321(c).
+            </div>
+          </div>
+
+          <!-- Calc result hero -->
+          <div class="result-hero" id="cResultHero">
+            <div class="rh-label" id="cRhLabel">Patent Expiration Date (Filing + 20yr + PTA)</div>
+            <div class="rh-date" id="cRhDate">Enter dates above</div>
+            <div class="rh-sub" id="cRhSub"></div>
+          </div>
+
+          <!-- Calc TD hero -->
+          <div id="cTdCard" style="display:none;background:linear-gradient(135deg,#2a1e00,#1e1500);
+               border:2px solid var(--gold);border-radius:10px;padding:16px;text-align:center;
+               margin-top:-10px;margin-bottom:18px">
+            <div style="font-size:.6rem;letter-spacing:2px;color:var(--gold);margin-bottom:5px;font-weight:700;text-transform:uppercase">
+              Effective Expiration (TD-Capped) — 37 CFR 1.321(c)
+            </div>
+            <div id="cTdDate2" style="font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:700;color:#fff;line-height:1">—</div>
+            <div id="cTdSub" style="font-size:.7rem;color:var(--gold);margin-top:4px"></div>
+          </div>
+
+          <!-- Calc summary chips -->
+          <div class="sum-row" id="cSumRow" style="display:none">
+            <div class="sum-chip"><div class="sc-l">Filing Date</div><div class="sc-v" id="cScFiling">—</div></div>
+            <div class="sum-chip"><div class="sc-l">Base (20yr)</div><div class="sc-v" id="cScBase">—</div></div>
+            <div class="sum-chip"><div class="sc-l">PTA Added</div><div class="sc-v" id="cScPta" style="color:var(--green)">+0d</div></div>
+            <div class="sum-chip" style="background:#fff8ea;border-color:rgba(197,160,89,.4)">
+              <div class="sc-l" id="cScFinalLabel">Final Expiry</div>
+              <div class="sc-v" id="cScFinal" style="color:var(--gold-dim)">—</div>
+            </div>
+          </div>
+          <div style="display:none;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:-10px;margin-bottom:18px" id="cTdChipRow">
+            <div class="sum-chip" style="background:#fff3f3;border-color:rgba(200,80,80,.3)"><div class="sc-l">Uncapped</div><div class="sc-v" id="cTcUncapped" style="color:#bbb;text-decoration:line-through">—</div></div>
+            <div class="sum-chip" style="background:#fff8e8;border-color:rgba(197,160,89,.5)"><div class="sc-l">TD Cap</div><div class="sc-v" id="cTcCap" style="color:var(--gold-dim)">—</div></div>
+            <div class="sum-chip" style="background:#fff3d0;border-color:rgba(197,160,89,.4)"><div class="sc-l">Forfeited</div><div class="sc-v" id="cTcForfeited" style="color:#b07030">0</div></div>
+            <div class="sum-chip" style="background:#1e2a1e;border-color:rgba(60,180,100,.4)"><div class="sc-l" style="color:#6be8a0">Effective</div><div class="sc-v" id="cTcEffective" style="color:#6be8a0">—</div></div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+            <a href="{{ url_for('download_excel') }}" class="btn-gold" style="font-size:.8rem;padding:8px 16px;text-decoration:none">📊 Download Excel Calculator</a>
+            <a href="{{ url_for('dashboard') }}" class="btn-ghost" style="font-size:.8rem;padding:7px 14px;text-decoration:none">← Back to Full Dashboard</a>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /resultsWrap -->
+  </div><!-- /exp-main -->
+</div><!-- /exp-wrap -->
+
+<footer class="footer">© 2026 EaseIP Pvt Ltd. All Rights Reserved. · Patent Expiration Tool</footer>
+</div>
+
+<script>
+// ─── Helpers ─────────────────────────────────────────────────────────
+const TD_CODES = new Set(['TDSC','TD','TDIN','TDNP','TDAP','DIST.E.FILE','DISQ.E.FILE','TDIS','TDQA']);
+function isTDDoc(d){
+  return TD_CODES.has((d.code||'').toUpperCase()) ||
+         (d.description||'').toLowerCase().includes('terminal disclaimer');
+}
+function isTDWithdraw(d){
+  return (d.code||'').toUpperCase().startsWith('TDW') ||
+    ((d.description||'').toLowerCase().includes('terminal disclaimer') &&
+     (d.description||'').toLowerCase().includes('withdraw'));
+}
+
+function fmtDate(s){
+  if(!s) return '—';
+  const p = s.substring(0,10).split('-');
+  return p.length === 3 ? `${p[1]}/${p[2]}/${p[0]}` : s;
+}
+function fmtDateD(d){
+  if(!d||isNaN(d.getTime())) return '—';
+  return (d.getMonth()+1).toString().padStart(2,'0')+'/'+
+         d.getDate().toString().padStart(2,'0')+'/'+d.getFullYear();
+}
+function addYears(d, y){ const r=new Date(d); r.setFullYear(r.getFullYear()+y); return r; }
+function addMonths(d, m){ const r=new Date(d); r.setMonth(r.getMonth()+m); return r; }
+
+let inputMode    = 'app';
+let _searchToken = 0;   // incremented on every new search — stale fetchTDDocs calls check this
+let currentAppNum = '';
+
+// ─── Mode toggle ──────────────────────────────────────────────────────
+function setMode(m){
+  inputMode = m;
+  document.getElementById('tabApp').classList.toggle('active', m==='app');
+  document.getElementById('tabPat').classList.toggle('active', m==='pat');
+  document.getElementById('searchInput').placeholder = m === 'app'
+    ? 'e.g. 14/196,999  or  14196999'
+    : 'e.g. 9,914,979  or  US9914979';
+}
+
+// ─── Search ───────────────────────────────────────────────────────────
+async function runSearch(){
+  const ref = document.getElementById('searchInput').value.trim();
+  if(!ref) return;
+  const btn = document.getElementById('btnRun');
+  const errEl = document.getElementById('searchErr');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Looking up…';
+  errEl.textContent = '';
+
+  // Bump token + immediately clear stale TD panel from previous search
+  const myToken = ++_searchToken;
+  document.getElementById('lpTDBody').innerHTML = '<span class="td-none">None detected</span>';
+  const _arCard = document.getElementById('tdAutoResolveCard');
+  if(_arCard) _arCard.style.display = 'none';
+
+  try{
+    const resp = await fetch('/expiration_analyze', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ref, mode: inputMode})   // send mode so backend uses correct search order
+    });
+    const data = await resp.json();
+    if(!resp.ok || data.error){
+      errEl.textContent = '⚠ ' + (data.error || 'Lookup failed.');
+      return;
+    }
+    renderSearchResult(data);
+    // After we have app_num, fetch document list for TD preview/download
+    currentAppNum = data.app_num || '';
+    if(currentAppNum){
+      fetchTDDocs(currentAppNum, data.terminal_disclaimer, myToken);
+      // Auto-run Auto-Resolve after fetchTDDocs has a head start (avoids
+      // simultaneous USPTO PDF requests causing each other to fail)
+      if(data.terminal_disclaimer && data.terminal_disclaimer.detected){
+        setTimeout(() => autoResolveTD(), 1500);
+      }
+    }
+    // Update Full PTA links
+    const q = encodeURIComponent(currentAppNum || ref);
+    document.getElementById('linkFullDash').href     = `/dashboard?q=${q}`;
+    document.getElementById('linkFullAnalysis').href = `/dashboard?q=${q}`;
+  } catch(e){
+    errEl.textContent = '⚠ Network error: ' + e.message;
+  } finally{
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Look Up';
+  }
+}
+
+// ─── Render search result ─────────────────────────────────────────────
+function renderSearchResult(d){
+  const m  = d.maintenance || {};
+  const td = d.terminal_disclaimer || {};
+  const pta = d.official_pta_days || 0;
+
+  document.getElementById('emptyState').style.display  = 'none';
+  document.getElementById('resultsWrap').style.display = '';
+  ['lpApp','lpDates','lpTD'].forEach(id => document.getElementById(id).style.display='');
+
+  const fmtPatNum = fmtPatent(d.patent_num);
+
+  // Left panel
+  document.getElementById('lpAppNum').textContent    = fmtApp(d.app_num)   || '—';
+  document.getElementById('lpPatNum').textContent    = fmtPatNum            || (d.grant_date ? 'Not on record' : '—');
+  document.getElementById('lpApplicant').textContent = (d.applicant||'—').substring(0,30);
+  document.getElementById('lpStatus').textContent    = (d.status||'—').substring(0,30);
+  document.getElementById('lpFiling').textContent    = fmtDate(d.filing_date) || '—';
+  document.getElementById('lpGrant').textContent     = fmtDate(d.grant_date)  || '—';
+  document.getElementById('lpPta').textContent       = pta + ' days';
+  document.getElementById('lpExpiry').textContent    = fmtDate(m.effective_expiration) || '—';
+
+  // Search mode badge
+  const modeBadge = document.getElementById('lpSearchModeBadge');
+  if(modeBadge){
+    modeBadge.textContent = inputMode === 'pat' ? '🔍 by Patent No.' : '🔍 by App No.';
+    modeBadge.title = inputMode === 'pat'
+      ? 'Result found by searching patent number'
+      : 'Result found by searching application number';
+  }
+
+  // TD left panel (metadata only at this stage; docs loaded async by fetchTDDocs)
+  renderTDLeftMeta(td);
+
+  // Patent info bar
+  document.getElementById('piApp').textContent    = fmtApp(d.app_num)      || '—';
+  document.getElementById('piPat').textContent    = fmtPatNum               || '—';
+  document.getElementById('piFiling').textContent = fmtDate(d.filing_date) || '—';
+  document.getElementById('piGrant').textContent  = fmtDate(d.grant_date)  || '—';
+  document.getElementById('piPta').textContent    = pta + ' days (official)';
+
+  // Expiration heroes
+  const uncapped = m.expiration_with_pta || '—';
+  const effective = m.effective_expiration || uncapped;
+  const tdApplied = m.td_applied;
+
+  // Primary hero
+  const hero = document.getElementById('resultHero');
+  if(tdApplied){
+    hero.classList.add('td-capped');
+    document.getElementById('rhlabel').textContent = 'Uncapped Expiration (without TD)';
+    document.getElementById('rhlabel').className = 'rh-label td';
+    document.getElementById('rhDate').textContent = fmtDate(uncapped);
+    document.getElementById('rhDate').style.cssText = 'color:#888;text-decoration:line-through;font-family:Rajdhani,sans-serif;font-size:2.4rem;font-weight:700;line-height:1';
+    document.getElementById('rhSub').textContent = 'Before terminal disclaimer cap';
+    document.getElementById('rhSub').className = 'rh-sub td';
+    document.getElementById('tdHeroDate').textContent = fmtDate(effective);
+    document.getElementById('tdHeroSub').textContent  = `Capped at parent expiry · ${m.td_days_forfeited||0} PTA days forfeited`;
+    document.getElementById('tdHeroCard').style.display = '';
+  } else {
+    hero.classList.remove('td-capped');
+    document.getElementById('rhlabel').textContent = 'Patent Expiration Date (Filing + 20yr + Official PTA)';
+    document.getElementById('rhlabel').className = 'rh-label';
+    document.getElementById('rhDate').textContent = fmtDate(effective);
+    document.getElementById('rhDate').style.cssText = 'font-family:Rajdhani,sans-serif;font-size:2.4rem;font-weight:700;color:#fff;line-height:1';
+    document.getElementById('rhSub').textContent  = `${fmtDate(d.filing_date)} + 20yr + ${pta} PTA days = ${fmtDate(effective)}`;
+    document.getElementById('rhSub').className = 'rh-sub';
+    document.getElementById('tdHeroCard').style.display = 'none';
+  }
+
+  // Summary chips
+  document.getElementById('scFiling').textContent    = fmtDate(d.filing_date);
+  document.getElementById('scBase').textContent      = fmtDate(m.base_expiration);
+  document.getElementById('scPta').textContent       = '+' + pta + 'd';
+  document.getElementById('scFinalLabel').textContent = tdApplied ? 'Effective Expiry' : 'Final Expiry';
+  document.getElementById('scFinal').textContent     = fmtDate(effective);
+
+  // TD chips
+  if(tdApplied){
+    document.getElementById('tdChipRow').style.display = 'grid';
+    document.getElementById('tcUncapped').textContent  = fmtDate(uncapped);
+    document.getElementById('tcCap').textContent       = fmtDate(m.td_cap_date);
+    document.getElementById('tcForfeited').textContent = '−'+(m.td_days_forfeited||0)+'d';
+    document.getElementById('tcEffective').textContent = fmtDate(effective);
+  } else {
+    document.getElementById('tdChipRow').style.display = 'none';
+  }
+
+  // Maintenance fee table
+  renderMaintTable(m, tdApplied);
+
+  // Auto-fill manual calculator
+  document.getElementById('cFiling').value = d.filing_date || '';
+  document.getElementById('cGrant').value  = d.grant_date  || '';
+  document.getElementById('cPta').value    = pta || 0;
+  // If TD was auto-detected and resolved, pre-tick the TD checkbox and fill date
+  if(tdApplied && m.td_cap_date){
+    document.getElementById('cTdCheck').checked = true;
+    document.getElementById('cTdInputs').style.display = 'block';
+    document.getElementById('cTdDate').value = m.td_cap_date;
+  }
+  calcExp();
+}
+
+// ─── TD metadata in left panel (before docs load) ─────────────────────
+function renderTDLeftMeta(td){
+  const body   = document.getElementById('lpTDBody');
+  const arCard = document.getElementById('tdAutoResolveCard');
+  const arStat = document.getElementById('tdARStatus');
+  const arOut  = document.getElementById('tdARChainMain');
+
+  if(!td || !td.detected){
+    body.innerHTML = '<span class="td-none">None detected</span>';
+    if(arCard) arCard.style.display = 'none';
+    return;
+  }
+  // Show the Auto-Resolve card in the main area whenever TD is detected
+  if(arCard){
+    arCard.style.display = '';
+    if(arOut)  arOut.innerHTML  = '';
+    if(arStat) arStat.innerHTML = '⏳ Running Auto-Resolve…';
+    const btnMain = document.getElementById('btnRunAR');
+    if(btnMain){ btnMain.disabled = true; btnMain.textContent = '⏳ Resolving…'; }
+  }
+  // Show initial metadata; doc buttons will be added by fetchTDDocs
+  let html = '';
+  (td.raw_tds||[]).forEach((t, idx) => {
+    const wd = t.withdrawn || t.possibly_withdrawn;
+    html += `<div class="td-doc-entry">
+      <span class="td-doc-badge ${wd?'withdrawn':''}"> ${wd?'Possibly Withdrawn':'Active'}</span>
+      <div class="td-doc-info">
+        Filed: <span>${t.date||'—'}</span><br>
+        Code: <span>${t.doc_code||'—'}</span>
+        ${t.ref_patent?`<br>Ref Patent: <span>${t.ref_patent}</span>`:''}
+        ${t.ref_app?`<br>Ref App: <span>${t.ref_app}</span>`:''}
+      </div>
+      <div class="td-doc-btns" id="tdDocBtns_${idx}">
+        <span style="font-size:.6rem;color:#666">Loading docs…</span>
+      </div>
+    </div>`;
+  });
+  if(td.td_cap_date){
+    html += `<div class="td-cap-pill">
+      <div class="cp-label">📌 TD Cap Date</div>
+      <div class="cp-date">${td.td_cap_date}</div>
+    </div>`;
+  } else if(!td.resolved){
+    html += `<div class="td-unresolved">⚠ Terminal disclaimer found — cap date not yet resolved.<br><span style="font-size:.68rem;color:#a08040">Use Auto-Resolve in the main panel above.</span></div>`;
+  }
+  body.innerHTML = html;
+}
+
+// ─── Fetch TD documents with preview/download buttons ─────────────────
+async function fetchTDDocs(appNum, tdMeta, token){
+  const clean = appNum.replace(/[/,\s]/g,'');
+  try{
+    const resp = await fetch(`/docs_transactions/${encodeURIComponent(clean)}`);
+    if(!resp.ok) return;
+    // Abort if a newer search has started while we were waiting for the network
+    if(token !== _searchToken) return;
+    const data = await resp.json();
+    const docs = data.documents || [];
+    const tdDocs = docs.filter(d => isTDDoc(d) && d.identifier);
+
+    if(!tdMeta || !tdMeta.detected || !tdDocs.length){
+      // No doc identifiers found — clear "Loading…"
+      document.querySelectorAll('[id^=tdDocBtns_]').forEach(el=>{
+        el.innerHTML = '<span style="font-size:.6rem;color:#555">No file ID available</span>';
+      });
+      return;
+    }
+
+    // Match each TD metadata entry to a document by index+code+date
+    const rawTDs = tdMeta.raw_tds || [];
+
+    // Build an ordered list of non-withdrawal TD docs first, then withdrawal ones
+    const nonWdDocs = tdDocs.filter(d => !isTDWithdraw(d));
+    const wdDocs    = tdDocs.filter(d =>  isTDWithdraw(d));
+    const usedIds   = new Set();
+
+    rawTDs.forEach((t, idx) => {
+      const btnContainer = document.getElementById(`tdDocBtns_${idx}`);
+      if(!btnContainer) return;
+
+      // Pick the best match: prefer same doc_code, then same date, then sequential
+      let bestDoc = null;
+      const pool = (t.withdrawn || t.possibly_withdrawn) ? [...wdDocs, ...nonWdDocs] : [...nonWdDocs, ...wdDocs];
+
+      // 1. Exact code match
+      for(const doc of pool){
+        if(!usedIds.has(doc.identifier) && doc.code && t.doc_code &&
+           doc.code.toUpperCase() === t.doc_code.toUpperCase()){
+          bestDoc = doc; break;
+        }
+      }
+      // 2. Same date match
+      if(!bestDoc){
+        for(const doc of pool){
+          if(!usedIds.has(doc.identifier) && t.date && doc.date &&
+             doc.date.substring(0,10) === t.date.substring(0,10)){
+            bestDoc = doc; break;
+          }
+        }
+      }
+      // 3. Sequential fallback
+      if(!bestDoc){
+        for(const doc of pool){
+          if(!usedIds.has(doc.identifier)){ bestDoc = doc; break; }
+        }
+      }
+      // 4. Last resort: reuse any
+      if(!bestDoc) bestDoc = pool[0] || null;
+
+      if(bestDoc && bestDoc.identifier){
+        usedIds.add(bestDoc.identifier);
+        const enc = encodeURIComponent(clean);
+        const id  = encodeURIComponent(bestDoc.identifier);
+        btnContainer.innerHTML =
+          `<a class="btn-preview" href="/proxy_doc/${enc}/${id}?fmt=pdf" target="_blank">👁 Preview</a>` +
+          `<a class="btn-dl"      href="/proxy_doc/${enc}/${id}?fmt=pdf&dl=1" target="_blank">⬇ Download</a>`;
+      } else {
+        btnContainer.innerHTML = '<span style="font-size:.6rem;color:#555">File unavailable</span>';
+      }
+    });
+  } catch(e){
+    document.querySelectorAll('[id^=tdDocBtns_]').forEach(el=>{
+      el.innerHTML = '<span style="font-size:.6rem;color:#555">Doc fetch failed</span>';
+    });
+  }
+}
+
+// ─── TD Auto-Resolve: tree renderer + explanation ─────────────────────
+
+// Render a single tree node (recursively renders children as branches)
+function _renderTreeNode(node, capRef, depth){
+  const METHOD = {
+    'description': '📝 description text',
+    'pdf_text':    '📄 PDF text layer',
+    'ocr':         '🔍 OCR scan',
+    'continuity':  '🔗 USPTO continuity',
+  };
+  const isRoot   = node.is_root;
+  const isCap    = (node.app_num === capRef || node.patent_num === capRef);
+  const title    = node.label || node.app_num || node.patent_num || '—';
+  const ptaText  = node.pta_days > 0 ? ` · PTA +${node.pta_days}d` : '';
+  const children = node.children || [];
+  const methLabel = METHOD[node.resolution_method] || '';
+
+  // Build "disclaims to" line when refs exist
+  let disclLine = '';
+  if(node.has_td && node.td_ref){
+    const allRefs  = (node.td_refs_all && node.td_refs_all.length) ? node.td_refs_all : [node.td_ref];
+    const expiries = node.td_ref_expiries || {};
+    const refTags  = allRefs.map(r => {
+      const iC  = r === node.td_ref;
+      const exp = expiries[r] ? ` <span style="color:#777;font-size:.68rem">(exp ${expiries[r]})</span>` : '';
+      return iC
+        ? `<strong style="color:#1a6a35">${r}</strong>${exp} <span style="color:#1a7a45;font-size:.65rem;font-weight:700">← cap</span>`
+        : `<span style="color:#555">${r}</span>${exp}`;
+    }).join(',&ensp;');
+    disclLine = `<div class="cn-method" style="margin-top:6px">
+      Disclaims to: ${refTags}
+      <span style="color:#888;margin-left:6px">via ${methLabel}</span>
+    </div>`;
+  } else if(node.has_td && !isRoot){
+    disclLine = `<div class="cn-method" style="color:#c06000;margin-top:6px">⚠ Has TD — parent ref could not be resolved</div>`;
+  }
+
+  let html = `<div class="td-tree-node${isRoot?' is-root-node':''}${isCap && !isRoot?' is-cap-node':''}">
+    <div class="cn-label" style="font-size:.82rem">
+      ${isRoot ? '🌳' : '📋'} <strong>${title}</strong>
+      ${isRoot ? '<span style="font-size:.65rem;color:#1a7a45;font-weight:700;margin-left:5px">ROOT</span>' : ''}
+      ${isCap && !isRoot ? '<span style="font-size:.65rem;color:#c9a84c;font-weight:700;margin-left:5px">CAP PATH</span>' : ''}
+    </div>
+    ${node.expiration_date
+      ? `<div class="cn-exp" style="font-size:.8rem;margin-top:3px">📅 Expires: ${node.expiration_date}</div>`
+      : '<div class="cn-exp" style="color:#777;font-size:.78rem;margin-top:3px">Expiration unknown</div>'}
+    ${node.filing_date ? `<div class="cn-filed" style="font-size:.73rem;margin-top:2px">🗓 Filed: ${node.filing_date}${ptaText}</div>` : ''}
+    ${disclLine}
+  </div>`;
+
+  if(children.length > 0){
+    if(children.length === 1){
+      // Single child: linear arrow
+      html += `<div class="td-chain-arrow"><div class="ar-line"></div><div class="ar-tip">↓</div></div>`;
+      html += _renderTreeNode(children[0], capRef, depth + 1);
+    } else {
+      // Multiple children: branch view
+      html += `<div class="td-tree-children">`;
+      children.forEach(child => {
+        const childId = child.app_num || child.patent_num;
+        const isCapBranch = (childId === capRef || child.app_num === capRef || child.patent_num === capRef);
+        html += `<div class="td-tree-branch">
+          <div class="td-branch-label${isCapBranch?' is-cap':''}">
+            ${isCapBranch ? '⬇ Cap-determining branch' : '⬇ Branch'}
+          </div>
+          ${_renderTreeNode(child, capRef, depth + 1)}
+        </div>`;
+      });
+      html += `</div>`;
+    }
+  }
+  return html;
+}
+
+function _buildChainHtml(data){
+  const tree  = data.tree  || null;
+  const chain = data.chain || [];
+
+  // Root node of the tree is the subject patent
+  const root      = tree || (chain.length ? chain[0] : null);
+  const capRef    = root ? root.td_ref : null;   // cap-determining first child
+
+  let html = `<div class="td-tree-wrap">
+    <div class="td-chain-title">TD Disclaimer Chain</div>`;
+
+  if(tree){
+    html += _renderTreeNode(tree, capRef, 0);
+  } else if(chain.length){
+    // Fallback: render flat chain
+    chain.forEach((node, i) => {
+      html += _renderTreeNode(node, null, 0);
+      if(i < chain.length - 1)
+        html += `<div class="td-chain-arrow"><div class="ar-line"></div><div class="ar-tip">↓</div></div>`;
+    });
+  }
+
+  // ── Resolved / unresolved banner ──────────────────────────────────────
+  if(data.resolved && data.final_cap_date){
+    html += `<div class="td-chain-resolved" style="margin-top:14px">
+      ✅ TD Chain Resolved — Cap Date: <strong>${data.final_cap_date}</strong>
+    </div>`;
+
+    // ── Explanation paragraph ─────────────────────────────────────────
+    const subjectExp  = root ? root.expiration_date : null;
+    const capDate     = data.final_cap_date;
+    const subjectLabel = root ? (root.patent_num ? `Patent ${root.patent_num}` : `App ${root.app_num}`) : 'This patent';
+    const allBranches = root && root.children ? root.children : [];
+    const branchCount = allBranches.length;
+    const refList     = (root && root.td_refs_all && root.td_refs_all.length)
+                          ? root.td_refs_all : (capRef ? [capRef] : []);
+    const methLabel   = {'description':'description text','pdf_text':'PDF text layer',
+                         'ocr':'OCR scan of the TD PDF','continuity':'USPTO continuity data'}[root && root.resolution_method] || 'USPTO data';
+
+    let refSentence = '';
+    if(refList.length === 1){
+      const exp = (root && root.td_ref_expiries && root.td_ref_expiries[refList[0]]) || capDate;
+      refSentence = `one co-pending application: <strong>App ${refList[0]}</strong> (expiry ${exp})`;
+    } else {
+      const parts = refList.map(r => {
+        const exp = (root && root.td_ref_expiries && root.td_ref_expiries[r]) || '—';
+        const isCap = r === capRef;
+        return `<strong>App ${r}</strong> (expiry ${exp}${isCap ? ', earliest — determines cap' : ''})`;
+      });
+      refSentence = `${refList.length} co-pending applications: ${parts.join(' and ')}`;
+    }
+
+    let verdictHtml = '';
+    if(subjectExp){
+      const capD = new Date(capDate);
+      const expD = new Date(subjectExp);
+      if(capD >= expD){
+        const diff = Math.round((capD - expD) / 86400000);
+        verdictHtml = `<div class="expl-verdict no-effect">
+          ✓ The TD has <strong>NO effect</strong> on this patent's expiry.
+          The patent's own term (${subjectExp}) already expires ${diff} day${diff===1?'':'s'} before the
+          TD cap date (${capDate}). <strong>Actual final expiry: ${subjectExp}</strong>
+        </div>`;
+      } else {
+        const diff = Math.round((expD - capD) / 86400000);
+        verdictHtml = `<div class="expl-verdict shortens">
+          ⚠ The TD <strong>shortens</strong> this patent by ${diff} day${diff===1?'':'s'}.
+          Without the TD, expiry would be ${subjectExp}.
+          The TD cap (${capDate}) is earlier. <strong>Actual final expiry: ${capDate}</strong>
+        </div>`;
+      }
+    }
+
+    html += `<div class="td-explanation-box">
+      <div class="expl-heading">📋 Terminal Disclaimer Analysis</div>
+      <p style="margin:0 0 6px">
+        <strong>${subjectLabel}</strong> filed a Terminal Disclaimer (resolved via ${methLabel})
+        disclaiming the terminal part of its statutory term beyond the expiration date of ${refSentence}.
+      </p>
+      <p style="margin:0 0 6px">
+        Under <strong>37 CFR 1.321(c)</strong>, the effective term of this patent may not extend
+        beyond the expiry of the referenced application${refList.length>1?'s (earliest governs)':''}.
+        The governing cap date is <strong style="font-family:monospace">${capDate}</strong>
+        ${refList.length>1 ? `(App ${capRef}, the earliest-expiring reference)` : ''}.
+      </p>
+      ${verdictHtml}
+    </div>`;
+  } else {
+    const noteText = data.note ? `<small>${data.note}</small>` : '';
+    html += `<div class="td-chain-unresolved">⚠ Could not fully trace the chain.${noteText}
+      <small>Enter the parent patent expiry manually in the calculator below.</small>
+    </div>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+async function autoResolveTD(){
+  if(!currentAppNum) return;
+
+  // Only the main card button — chain display is in the main card only
+  const btnMain  = document.getElementById('btnRunAR');
+  const mainOut  = document.getElementById('tdARChainMain');
+  const statusEl = document.getElementById('tdARStatus');
+
+  const setLoading = (on) => {
+    if(btnMain){ btnMain.disabled = on; btnMain.textContent = on ? '⏳ Resolving…' : '🔄 Re-run Auto-Resolve'; }
+  };
+  setLoading(true);
+  if(statusEl) statusEl.innerHTML = '<span style="color:#888">Fetching TD chain from USPTO…</span>';
+  if(mainOut)  mainOut.innerHTML  = '';
+
+  try{
+    const clean = currentAppNum.replace(/[/,\s]/g,'');
+    const resp  = await fetch(`/api/auto_resolve_td/${encodeURIComponent(clean)}`);
+    const data  = await resp.json();
+
+    if(!resp.ok || data.error){
+      if(mainOut)  mainOut.innerHTML  = `<div class="td-chain-unresolved">⚠ Error: ${data.error||'Unknown error'}</div>`;
+      if(statusEl) statusEl.innerHTML = '<span style="color:#c03030">Error during resolution.</span>';
+      setLoading(false);
+      return;
+    }
+
+    if(mainOut) mainOut.innerHTML = _buildChainHtml(data);
+
+    if(data.resolved && data.final_cap_date){
+      // Determine actual impact for the status line
+      const root = data.tree || (data.chain && data.chain[0]) || null;
+      const subjectExp = root ? root.expiration_date : null;
+      let statusMsg = `✅ Resolved — TD cap date: <strong style="font-family:monospace">${data.final_cap_date}</strong>`;
+      if(subjectExp){
+        const capD = new Date(data.final_cap_date);
+        const expD = new Date(subjectExp);
+        if(capD >= expD){
+          statusMsg += `&ensp;<span style="color:#1a7a45;font-weight:700">· No effect on expiry</span>`;
+        } else {
+          const diff = Math.round((expD - capD) / 86400000);
+          statusMsg += `&ensp;<span style="color:#c03030;font-weight:700">· Shortens patent by ${diff} days</span>`;
+        }
+      }
+      if(statusEl) statusEl.innerHTML = statusMsg;
+      // Auto-fill calculator with the effective expiry date
+      const effectiveExpiry = (subjectExp && new Date(data.final_cap_date) >= new Date(subjectExp))
+        ? subjectExp : data.final_cap_date;
+      const tdExpInput = document.getElementById('cTdDate');
+      const tdCheck    = document.getElementById('cTdCheck');
+      if(tdExpInput){ tdExpInput.value = data.final_cap_date; }
+      if(tdCheck && !tdCheck.checked){ tdCheck.click(); }
+      calcExp();
+    } else {
+      if(statusEl) statusEl.innerHTML = `<span style="color:#e6a817">⚠ Partial resolution — enter parent expiry manually below.</span>`;
+    }
+
+    setLoading(false);
+
+  } catch(e){
+    if(mainOut)  mainOut.innerHTML  = `<div class="td-chain-unresolved">⚠ Network error: ${e.message}</div>`;
+    if(statusEl) statusEl.innerHTML = '<span style="color:#c03030">Network error.</span>';
+    setLoading(false);
+  }
+}
+
+// ─── Maintenance table ────────────────────────────────────────────────
+function renderMaintTable(m, tdApplied){
+  const fees = m.maintenance_fees||[];
+  if(!fees.length){ document.getElementById('maintCard').style.display='none'; return; }
+  const now = new Date();
+  document.getElementById('thTD').style.display = tdApplied ? '' : 'none';
+  document.getElementById('maintCard').style.display = '';
+  const ords = ['1st','2nd','3rd'];
+  const rows = fees.map(mf=>{
+    const open  = new Date(mf.window_open);
+    const close = new Date(mf.window_close);
+    const grace = new Date(mf.grace_period_end);
+    let statusHtml = '';
+    if(now > grace)             statusHtml = `<span class="status-passed">✓ Passed</span>`;
+    else if(now>=open&&now<=close) statusHtml = `<span class="status-due">⚡ Due Now</span>`;
+    else if(now>close&&now<=grace) statusHtml = `<span class="status-grace">⚠ Grace</span>`;
+    else                         statusHtml = `<span class="status-upcoming">🔵 Upcoming</span>`;
+    let tdHtml = '';
+    if(tdApplied){
+      const rel = mf.td_relevance||'needed';
+      tdHtml = rel==='not_needed'
+        ? `<span class="td-badge-not-needed">✕ Not Needed</span>${mf.td_note?`<div class="td-note-row">${mf.td_note}</div>`:''}`
+        : rel==='partial'
+        ? `<span class="td-badge-partial">⚠ Evaluate</span>${mf.td_note?`<div class="td-note-row">${mf.td_note}</div>`:''}`
+        : `<span class="td-badge-needed">✓ Required</span>`;
+    }
+    return `<tr>
+      <td style="font-weight:700">${ords[mf.fee_number-1]||mf.fee_number}</td>
+      <td class="mono">${fmtDate(mf.window_open)}</td>
+      <td class="mono">${fmtDate(mf.window_close)}</td>
+      <td><div class="mono grace">${fmtDate(mf.grace_period_end)}</div>
+          <div class="note-sm">+surcharge if paid after ${fmtDate(mf.window_close)}</div></td>
+      <td>${statusHtml}</td>
+      ${tdApplied?`<td>${tdHtml}</td>`:''}
+    </tr>`;
+  });
+  document.getElementById('maintBody').innerHTML = rows.join('');
+}
+
+// ─── Manual Calculator ────────────────────────────────────────────────
+function toggleTdCalc(){
+  const on = document.getElementById('cTdCheck').checked;
+  document.getElementById('cTdInputs').style.display = on ? 'block' : 'none';
+  if(!on) document.getElementById('cTdLookupStatus').style.display='none';
+}
+
+let _cTdMode = 'app';   // 'app' or 'pat' — mode for the manual calc TD lookup
+
+function setCTdMode(m){
+  _cTdMode = m;
+  const tabApp = document.getElementById('cTdTabApp');
+  const tabPat = document.getElementById('cTdTabPat');
+  if(tabApp && tabPat){
+    if(m === 'app'){
+      tabApp.style.background = 'var(--dark)'; tabApp.style.color = 'var(--gold)';
+      tabPat.style.background = '#fafaf8';     tabPat.style.color = '#999';
+    } else {
+      tabPat.style.background = 'var(--dark)'; tabPat.style.color = 'var(--gold)';
+      tabApp.style.background = '#fafaf8';     tabApp.style.color = '#999';
+    }
+  }
+}
+
+async function lookupCalcTD(){
+  const ref = document.getElementById('cTdRef').value.trim();
+  if(!ref) return;
+  const btn = document.getElementById('cTdLookupBtn');
+  const statusEl = document.getElementById('cTdLookupStatus');
+  btn.disabled = true; btn.textContent = '⏳ Looking up…';
+  statusEl.style.display  = 'block';
+  statusEl.style.borderColor = 'var(--gold)';
+  statusEl.style.background  = '#fffdf0';
+  statusEl.style.color       = '#7a4d00';
+  statusEl.innerHTML = '⏳ Fetching USPTO record…';
+  try{
+    const url = '/resolve_expiration/'+encodeURIComponent(ref)+'?mode='+_cTdMode;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if(!resp.ok||data.error){
+      statusEl.style.borderColor='#c0392b'; statusEl.style.background='#fff3f3'; statusEl.style.color='#c0392b';
+      statusEl.innerHTML = `⚠ ${data.error||'Lookup failed.'}`;
+    } else {
+      if(data.expiration_date){ document.getElementById('cTdDate').value=data.expiration_date; calcExp(); }
+      const label = data.patent_num?`Patent ${data.patent_num}`:`App ${data.app_num}`;
+      statusEl.style.borderColor='#27ae60'; statusEl.style.background='#f0fff4'; statusEl.style.color='#1a6630';
+      statusEl.innerHTML = `✓ <strong>${label}</strong> · Filed: ${fmtDate(data.filing_date)} · `+
+        `Grant: ${fmtDate(data.grant_date)} · PTA: ${data.total_pta} days · `+
+        `<strong>Expiry: ${fmtDate(data.expiration_date)}</strong> — auto-filled above.`;
+    }
+  } catch(e){
+    statusEl.style.borderColor='#c0392b'; statusEl.style.background='#fff3f3'; statusEl.style.color='#c0392b';
+    statusEl.innerHTML='⚠ Network error: '+e.message;
+  } finally{ btn.disabled=false; btn.textContent='🔍 Lookup'; }
+}
+
+function calcExp(){
+  const filingVal = document.getElementById('cFiling').value;
+  const grantVal  = document.getElementById('cGrant').value;
+  const pta       = parseInt(document.getElementById('cPta').value)||0;
+  const tdOn      = document.getElementById('cTdCheck').checked;
+  const tdDateVal = document.getElementById('cTdDate').value;
+
+  if(!filingVal){
+    document.getElementById('cRhDate').textContent = 'Enter dates above';
+    document.getElementById('cRhSub').textContent  = '';
+    document.getElementById('cSumRow').style.display = 'none';
+    document.getElementById('cTdChipRow').style.display = 'none';
+    document.getElementById('cTdCard').style.display    = 'none';
+    document.getElementById('cMaintWrap').style.display = 'none';
+    return;
+  }
+
+  const fd   = new Date(filingVal+'T00:00:00');
+  const base = addYears(fd, 20);
+  const exp  = new Date(base); exp.setDate(exp.getDate()+pta);
+
+  let effectiveExp=exp, tdApplied=false, tdForfeited=0, tdCap=null;
+  if(tdOn && tdDateVal){
+    tdCap = new Date(tdDateVal+'T00:00:00');
+    if(!isNaN(tdCap.getTime()) && tdCap < exp){
+      tdForfeited  = Math.round((exp-tdCap)/(86400000));
+      effectiveExp = tdCap;
+      tdApplied    = true;
+    }
+  }
+
+  // Hero
+  if(tdApplied){
+    document.getElementById('cRhLabel').textContent='Uncapped Expiration (without TD)';
+    document.getElementById('cRhDate').textContent=fmtDateD(exp);
+    document.getElementById('cRhDate').style.cssText='color:#888;text-decoration:line-through;font-family:Rajdhani,sans-serif;font-size:2.4rem;font-weight:700;line-height:1';
+    document.getElementById('cRhSub').textContent='Before terminal disclaimer cap';
+    document.getElementById('cTdDate2').textContent=fmtDateD(effectiveExp);
+    document.getElementById('cTdSub').textContent=`Capped at parent expiry · ${tdForfeited} PTA days forfeited`;
+    document.getElementById('cTdCard').style.display='';
+  } else {
+    document.getElementById('cRhLabel').textContent='Patent Expiration Date (Filing + 20yr + PTA)';
+    document.getElementById('cRhDate').textContent=fmtDateD(exp);
+    document.getElementById('cRhDate').style.cssText='font-family:Rajdhani,sans-serif;font-size:2.4rem;font-weight:700;color:#fff;line-height:1';
+    document.getElementById('cRhSub').textContent=`${fmtDateD(fd)} + 20yr + ${pta}d = ${fmtDateD(exp)}`;
+    document.getElementById('cTdCard').style.display='none';
+  }
+
+  // Summary chips
+  document.getElementById('cSumRow').style.display='grid';
+  document.getElementById('cScFiling').textContent=fmtDateD(fd);
+  document.getElementById('cScBase').textContent=fmtDateD(base);
+  document.getElementById('cScPta').textContent='+'+pta+'d';
+  document.getElementById('cScFinalLabel').textContent=tdApplied?'Effective Expiry':'Final Expiry';
+  document.getElementById('cScFinal').textContent=fmtDateD(effectiveExp);
+
+  const ctr = document.getElementById('cTdChipRow');
+  if(tdApplied){
+    ctr.style.display='grid';
+    document.getElementById('cTcUncapped').textContent=fmtDateD(exp);
+    document.getElementById('cTcCap').textContent=fmtDateD(tdCap);
+    document.getElementById('cTcForfeited').textContent='−'+tdForfeited+'d';
+    document.getElementById('cTcEffective').textContent=fmtDateD(effectiveExp);
+  } else { ctr.style.display='none'; }
+
+  // TD alert
+  const al = document.getElementById('cTdAlert');
+  if(tdOn && tdDateVal && !tdApplied){
+    al.style.display='block';
+    al.innerHTML=`ℹ️ <strong>Note:</strong> The TD cap (${fmtDateD(tdCap)}) is <em>after</em> the uncapped expiry (${fmtDateD(exp)}), so the disclaimer has no effect here.`;
+  } else if(tdOn && !tdDateVal){
+    al.style.display='block';
+    al.innerHTML=`📌 Enter the <strong>disclaimed-to date</strong> (parent patent's expiration) above.`;
+  } else { al.style.display='none'; }
+
+}
+
+// ─── Utility ──────────────────────────────────────────────────────────
+function sanitizeId(s){ return (s||'').replace(/[^a-zA-Z0-9]/g,'_'); }
+function fmtApp(s){
+  if(!s) return s;
+  const c=s.replace(/\D/g,'');
+  if(c.length===8) return `${c.slice(0,2)}/${c.slice(2,5)},${c.slice(5)}`;
+  return s;
+}
+function fmtPatent(s){
+  // Format a USPTO patent number with commas: 12531873 → 12,531,873
+  if(!s) return s;
+  const c = s.replace(/\D/g,'');
+  if(c.length === 7) return `${c.slice(0,1)},${c.slice(1,4)},${c.slice(4)}`;   // X,XXX,XXX
+  if(c.length === 8) return `${c.slice(0,2)},${c.slice(2,5)},${c.slice(5)}`;   // XX,XXX,XXX
+  if(c.length === 9) return `${c.slice(0,3)},${c.slice(3,6)},${c.slice(6)}`;   // XXX,XXX,XXX
+  return s;
+}
+
+// ─── Auto-search from URL ?q= and ?mode= params ──────────────────────
+window.addEventListener('DOMContentLoaded', ()=>{
+  const params = new URLSearchParams(location.search);
+  const q    = params.get('q');
+  const mode = params.get('mode');   // 'pat' | 'app' (optional, defaults to 'app')
+  if(mode === 'pat') setMode('pat');
+  if(q){ document.getElementById('searchInput').value=q; runSearch(); }
+  calcExp();
+});
+</script>
+</body>
+</html>

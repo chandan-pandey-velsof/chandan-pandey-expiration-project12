@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Settings — EaseIP PTA Portal</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+html,body{height:100%;margin:0;}
+.api-layout{display:grid;grid-template-rows:64px 1fr 36px;height:100vh;}
+.api-body{overflow-y:auto;background:var(--surface);padding:28px 0;}
+.api-wrap{max-width:860px;margin:0 auto;padding:0 24px;}
+
+/* Page header */
+.page-hdr{margin-bottom:28px;}
+.page-hdr h1{font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:900;color:var(--gold);letter-spacing:2px;margin:0 0 4px;}
+.page-hdr p{font-size:.82rem;color:#888;margin:0;}
+
+/* Sections */
+.api-section{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:20px;overflow:hidden;}
+.api-sec-hdr{background:#2d2d2d;border-bottom:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;gap:10px;}
+.api-sec-hdr h2{font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:800;letter-spacing:2px;color:var(--gold);text-transform:uppercase;margin:0;}
+.api-sec-hdr .badge{font-size:.6rem;padding:2px 7px;border-radius:20px;font-weight:700;letter-spacing:1px;}
+.badge-admin{background:rgba(197,160,89,.15);color:var(--gold);border:1px solid rgba(197,160,89,.3);}
+.badge-get{background:rgba(60,180,100,.15);color:#3db870;border:1px solid rgba(60,180,100,.3);}
+.badge-post{background:rgba(58,126,197,.15);color:#3a7ec5;border:1px solid rgba(58,126,197,.3);}
+.api-sec-body{padding:18px;}
+
+/* Key box */
+.key-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.key-display{flex:1;font-family:'Courier New',monospace;font-size:.9rem;background:#1a1a1a;border:1.5px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--gold);letter-spacing:.5px;word-break:break-all;}
+.key-display.hidden span.key-val{filter:blur(5px);user-select:none;}
+.btn-sm{padding:7px 14px;border-radius:6px;font-size:.75rem;font-weight:700;letter-spacing:.8px;cursor:pointer;border:none;transition:all .15s;}
+.btn-copy{background:rgba(197,160,89,.15);color:var(--gold);border:1px solid rgba(197,160,89,.4);}
+.btn-copy:hover{background:rgba(197,160,89,.25);}
+.btn-toggle{background:rgba(255,255,255,.06);color:#aaa;border:1px solid var(--border);}
+.btn-toggle:hover{background:rgba(255,255,255,.1);}
+.btn-regen{background:rgba(200,60,60,.12);color:#d94f4f;border:1px solid rgba(200,60,60,.3);}
+.btn-regen:hover{background:rgba(200,60,60,.22);}
+.btn-primary{background:var(--gold);color:#1a1a1a;font-weight:800;}
+.btn-primary:hover{background:#d4aa60;}
+.copy-feedback{font-size:.72rem;color:#3db870;display:none;margin-left:4px;}
+
+/* URL rows */
+.url-block{background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-family:'Courier New',monospace;font-size:.8rem;color:#ccc;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;word-break:break-all;}
+.url-method{font-size:.65rem;font-weight:800;padding:2px 8px;border-radius:4px;flex-shrink:0;}
+.method-get{background:rgba(60,180,100,.2);color:#3db870;}
+.method-post{background:rgba(58,126,197,.2);color:#3a7ec5;}
+
+/* Code examples */
+.code-tabs{display:flex;gap:4px;margin-bottom:10px;}
+.code-tab{padding:5px 14px;border-radius:5px 5px 0 0;font-size:.72rem;font-weight:700;cursor:pointer;border:1px solid var(--border);border-bottom:none;background:var(--surface);color:#888;}
+.code-tab.active{background:#1a1a1a;color:var(--gold);border-color:var(--border);}
+.code-pane{display:none;background:#1a1a1a;border:1px solid var(--border);border-radius:0 6px 6px 6px;padding:14px 16px;font-family:'Courier New',monospace;font-size:.76rem;line-height:1.7;color:#ccc;overflow-x:auto;white-space:pre;}
+.code-pane.active{display:block;}
+.cm-kw{color:#c792ea;}.cm-str{color:#c3e88d;}.cm-cmt{color:#546e7a;}.cm-fn{color:#82aaff;}.cm-num{color:#f78c6c;}.cm-var{color:#eeffff;}
+
+/* Live test */
+.test-row{display:flex;gap:10px;align-items:center;margin-bottom:14px;}
+.test-input{flex:1;background:#1a1a1a;border:1.5px solid var(--border);border-radius:6px;padding:9px 14px;color:#eee;font-size:.85rem;font-family:'Courier New',monospace;}
+.test-input:focus{outline:none;border-color:var(--gold);}
+.test-result{background:#111;border:1px solid var(--border);border-radius:6px;padding:14px;font-family:'Courier New',monospace;font-size:.73rem;color:#ccc;min-height:80px;max-height:320px;overflow:auto;white-space:pre;line-height:1.6;}
+.test-status{font-size:.72rem;margin-bottom:8px;}
+.status-ok{color:#3db870;}.status-err{color:#d94f4f;}.status-wait{color:#888;}
+
+/* Response field table */
+.field-table{width:100%;border-collapse:collapse;}
+.field-table th{background:#222;color:#888;font-size:.7rem;letter-spacing:1px;text-transform:uppercase;padding:7px 12px;text-align:left;border-bottom:1px solid var(--border);}
+.field-table td{padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.04);font-size:.78rem;vertical-align:top;}
+.field-table tr:last-child td{border-bottom:none;}
+.field-name{font-family:'Courier New',monospace;color:#82aaff;}
+.field-type{color:#f78c6c;font-size:.7rem;}
+
+/* Footer */
+.footer{background:var(--nav);border-top:1px solid var(--border);height:36px;display:flex;align-items:center;justify-content:center;}
+.footer span{font-size:.65rem;color:#555;letter-spacing:1px;}
+
+/* Confirm modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:#1e1e1e;border:2px solid #d94f4f;border-radius:10px;padding:28px 32px;max-width:380px;text-align:center;}
+.modal-box h3{font-family:'Rajdhani',sans-serif;color:#d94f4f;font-size:1.1rem;margin:0 0 10px;}
+.modal-box p{font-size:.82rem;color:#aaa;margin:0 0 20px;line-height:1.6;}
+.modal-btns{display:flex;gap:10px;justify-content:center;}
+</style>
+</head>
+<body>
+<div class="api-layout">
+
+<!-- Navbar -->
+<nav class="navbar">
+  <a class="navbar-brand" href="/">
+    <div class="navbar-logo-wrap">
+      <img src="{{ url_for('static', filename='logo_white.png') }}" alt="EaseIP"
+           onerror="this.src='{{ url_for('static', filename='logo.png') }}'">
+    </div>
+    <div><span class="brand-text">EASEIP · Intelligent PTA Calculator</span>
+         <span class="brand-sub">API Settings &amp; Integration</span></div>
+  </a>
+  <div class="navbar-links">
+    <span class="badge-admin">ADMIN</span>
+    <a href="{{ url_for('dashboard') }}">← Dashboard</a>
+    <a href="{{ url_for('admin_manage') }}">Users</a>
+    <a href="{{ url_for('logout') }}">Sign Out</a>
+  </div>
+</nav>
+
+<!-- Body -->
+<div class="api-body">
+<div class="api-wrap">
+
+  <div class="page-hdr">
+    <h1>🔌 API SETTINGS &amp; INTEGRATION</h1>
+    <p>Connect the EaseIP Expiration API to external tools, docketing systems, scripts, or dashboards.</p>
+  </div>
+
+  <!-- ── API Key ─────────────────────────────────────────────── -->
+  <div class="api-section">
+    <div class="api-sec-hdr">
+      <h2>🔑 API Key</h2>
+      <span class="badge badge-admin">Admin Only</span>
+    </div>
+    <div class="api-sec-body">
+      <p style="font-size:.8rem;color:#aaa;margin:0 0 14px">
+        Include this key in the <code style="color:var(--gold)">X-EaseIP-Api-Key</code> header for all API requests from external tools. Keep it secret.
+      </p>
+      <div class="key-row">
+        <div class="key-display hidden" id="keyDisplay">
+          <span class="key-val" id="keyVal">{{ api_key }}</span>
+        </div>
+        <button class="btn-sm btn-toggle" onclick="toggleKey()" id="toggleBtn">👁 Show</button>
+        <button class="btn-sm btn-copy" onclick="copyKey()">📋 Copy</button>
+        <span class="copy-feedback" id="copyFeedback">Copied!</span>
+      </div>
+      <button class="btn-sm btn-regen" onclick="document.getElementById('regenModal').classList.add('open')">
+        🔄 Regenerate Key
+      </button>
+      <p style="font-size:.72rem;color:#666;margin:10px 0 0">Regenerating creates a new key immediately. Any tools using the old key will stop working until updated.</p>
+    </div>
+  </div>
+
+  <!-- ── Server URLs ─────────────────────────────────────────── -->
+  <div class="api-section">
+    <div class="api-sec-hdr">
+      <h2>🌐 Server &amp; Endpoints</h2>
+    </div>
+    <div class="api-sec-body">
+      <p style="font-size:.8rem;color:#aaa;margin:0 0 14px">
+        Your server is accessible at the addresses below. Use the <strong style="color:#eee">Network</strong> address to connect from other devices on your local network.
+      </p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+        <div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:10px 14px">
+          <div style="font-size:.65rem;color:#888;letter-spacing:1px;margin-bottom:4px">LOCAL (this machine)</div>
+          <div style="font-family:'Courier New',monospace;font-size:.8rem;color:var(--gold)" id="localUrl">https://localhost:9090</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:10px 14px">
+          <div style="font-size:.65rem;color:#888;letter-spacing:1px;margin-bottom:4px">NETWORK (other devices)</div>
+          <div style="font-family:'Courier New',monospace;font-size:.8rem;color:#3db870" id="networkUrl">https://{{ server_host }}</div>
+        </div>
+      </div>
+
+      <div style="font-size:.72rem;color:#888;margin-bottom:10px;letter-spacing:1px;text-transform:uppercase">Available Endpoints</div>
+
+      <div class="url-block">
+        <span class="url-method method-get">GET</span>
+        <span>/api/expiration/<strong style="color:var(--gold)">{app_or_patent_number}</strong></span>
+        <button class="btn-sm btn-copy" style="flex-shrink:0" onclick="copyText('/api/expiration/{ref}',this)">Copy</button>
+      </div>
+      <div style="font-size:.75rem;color:#888;margin:-4px 0 14px 4px">Returns full expiration data for any application or patent number.</div>
+
+      <div class="url-block">
+        <span class="url-method method-post">POST</span>
+        <span>/api/settings/regenerate</span>
+        <button class="btn-sm btn-copy" style="flex-shrink:0" onclick="copyText('/api/settings/regenerate',this)">Copy</button>
+      </div>
+      <div style="font-size:.75rem;color:#888;margin:-4px 0 0 4px">Generates a new API key (admin session required).</div>
+    </div>
+  </div>
+
+  <!-- ── Authentication ─────────────────────────────────────── -->
+  <div class="api-section">
+    <div class="api-sec-hdr">
+      <h2>🔐 Authentication</h2>
+    </div>
+    <div class="api-sec-body">
+      <p style="font-size:.8rem;color:#aaa;margin:0 0 14px">
+        All API calls from external tools must include the key as a request header. Browser sessions (logged-in users) are automatically authenticated.
+      </p>
+      <div class="url-block" style="margin-bottom:6px">
+        <span style="color:#888;font-size:.75rem">Header name:</span>
+        <span style="color:var(--gold)">X-EaseIP-Api-Key</span>
+      </div>
+      <div class="url-block">
+        <span style="color:#888;font-size:.75rem">Header value:</span>
+        <span id="keyInHeader">{{ api_key }}</span>
+        <button class="btn-sm btn-copy" style="flex-shrink:0" onclick="copyText(document.getElementById('keyVal').textContent,this)">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Code Examples ──────────────────────────────────────── -->
+  <div class="api-section">
+    <div class="api-sec-hdr">
+      <h2>💻 Code Examples</h2>
+    </div>
+    <div class="api-sec-body">
+      <p style="font-size:.8rem;color:#aaa;margin:0 0 14px">Copy-paste ready examples to connect from any tool.</p>
+
+      <div class="code-tabs">
+        <div class="code-tab active" onclick="switchTab('curl')">cURL</div>
+        <div class="code-tab" onclick="switchTab('python')">Python</div>
+        <div class="code-tab" onclick="switchTab('js')">JavaScript</div>
+        <div class="code-tab" onclick="switchTab('excel')">Excel Power Query</div>
+      </div>
+
+      <div class="code-pane active" id="tab-curl"><span class="cm-cmt"># Replace 17123456 with your application or patent number</span>
+<span class="cm-fn">curl</span> <span class="cm-str">-k</span> \
+  <span class="cm-str">-H</span> <span class="cm-str">"X-EaseIP-Api-Key: <span id="eg-key-curl">{{ api_key }}</span>"</span> \
+  <span class="cm-str">"https://{{ server_host }}/api/expiration/17123456"</span>
+
+<span class="cm-cmt"># By patent number</span>
+<span class="cm-fn">curl</span> <span class="cm-str">-k</span> \
+  <span class="cm-str">-H</span> <span class="cm-str">"X-EaseIP-Api-Key: {{ api_key }}"</span> \
+  <span class="cm-str">"https://{{ server_host }}/api/expiration/US11234567"</span></div>
+
+      <div class="code-pane" id="tab-python"><span class="cm-kw">import</span> <span class="cm-var">requests</span>
+
+<span class="cm-var">BASE_URL</span> = <span class="cm-str">"https://{{ server_host }}"</span>
+<span class="cm-var">API_KEY</span>  = <span class="cm-str">"<span id="eg-key-py">{{ api_key }}</span>"</span>
+
+<span class="cm-kw">def</span> <span class="cm-fn">get_expiration</span>(<span class="cm-var">ref</span>):
+    <span class="cm-var">resp</span> = <span class="cm-var">requests</span>.<span class="cm-fn">get</span>(
+        <span class="cm-var">f</span><span class="cm-str">"{BASE_URL}/api/expiration/{ref}"</span>,
+        <span class="cm-var">headers</span>={<span class="cm-str">"X-EaseIP-Api-Key"</span>: <span class="cm-var">API_KEY</span>},
+        <span class="cm-var">verify</span>=<span class="cm-kw">False</span>  <span class="cm-cmt"># self-signed cert</span>
+    )
+    <span class="cm-var">resp</span>.<span class="cm-fn">raise_for_status</span>()
+    <span class="cm-kw">return</span> <span class="cm-var">resp</span>.<span class="cm-fn">json</span>()
+
+<span class="cm-cmt"># Example</span>
+<span class="cm-var">data</span> = <span class="cm-fn">get_expiration</span>(<span class="cm-str">"17123456"</span>)
+<span class="cm-fn">print</span>(<span class="cm-var">data</span>[<span class="cm-str">"effective_expiration"</span>])  <span class="cm-cmt"># e.g. "2041-03-01"</span>
+<span class="cm-fn">print</span>(<span class="cm-var">data</span>[<span class="cm-str">"official_pta_days"</span>])     <span class="cm-cmt"># e.g. 45</span></div>
+
+      <div class="code-pane" id="tab-js"><span class="cm-kw">const</span> <span class="cm-var">BASE_URL</span> = <span class="cm-str">"https://{{ server_host }}"</span>;
+<span class="cm-kw">const</span> <span class="cm-var">API_KEY</span>  = <span class="cm-str">"<span id="eg-key-js">{{ api_key }}</span>"</span>;
+
+<span class="cm-kw">async function</span> <span class="cm-fn">getExpiration</span>(<span class="cm-var">ref</span>) {
+  <span class="cm-kw">const</span> <span class="cm-var">resp</span> = <span class="cm-kw">await</span> <span class="cm-fn">fetch</span>(
+    <span class="cm-str">`${BASE_URL}/api/expiration/${ref}`</span>,
+    { <span class="cm-var">headers</span>: { <span class="cm-str">"X-EaseIP-Api-Key"</span>: <span class="cm-var">API_KEY</span> } }
+  );
+  <span class="cm-kw">if</span> (!<span class="cm-var">resp</span>.<span class="cm-var">ok</span>) <span class="cm-kw">throw new</span> <span class="cm-fn">Error</span>(<span class="cm-var">resp</span>.<span class="cm-var">statusText</span>);
+  <span class="cm-kw">return</span> <span class="cm-var">resp</span>.<span class="cm-fn">json</span>();
+}
+
+<span class="cm-cmt">// Example</span>
+<span class="cm-fn">getExpiration</span>(<span class="cm-str">"17123456"</span>).<span class="cm-fn">then</span>(<span class="cm-var">d</span> => {
+  <span class="cm-var">console</span>.<span class="cm-fn">log</span>(<span class="cm-var">d</span>.<span class="cm-var">effective_expiration</span>);
+  <span class="cm-var">console</span>.<span class="cm-fn">log</span>(<span class="cm-var">d</span>.<span class="cm-var">official_pta_days</span>);
+});</div>
+
+      <div class="code-pane" id="tab-excel"><span class="cm-cmt">// Paste into Excel → Data → Get Data → From Other Sources</span>
+<span class="cm-cmt">// → Blank Query → Advanced Editor</span>
+
+<span class="cm-kw">let</span>
+    <span class="cm-var">BaseUrl</span>  = <span class="cm-str">"https://{{ server_host }}"</span>,
+    <span class="cm-var">ApiKey</span>   = <span class="cm-str">"<span id="eg-key-excel">{{ api_key }}</span>"</span>,
+    <span class="cm-var">AppNum</span>   = <span class="cm-str">"17123456"</span>,  <span class="cm-cmt">// ← change this</span>
+    <span class="cm-var">Url</span>      = <span class="cm-var">BaseUrl</span> &amp; <span class="cm-str">"/api/expiration/"</span> &amp; <span class="cm-var">AppNum</span>,
+    <span class="cm-var">Response</span> = <span class="cm-fn">Web.Contents</span>(<span class="cm-var">Url</span>, [
+        <span class="cm-var">Headers</span> = [<span class="cm-str">#"X-EaseIP-Api-Key"</span> = <span class="cm-var">ApiKey</span>]
+    ]),
+    <span class="cm-var">Json</span>     = <span class="cm-fn">Json.Document</span>(<span class="cm-var">Response</span>),
+    <span class="cm-var">Result</span>   = <span class="cm-fn">Record.ToTable</span>(<span class="cm-var">Json</span>)
+<span class="cm-kw">in</span>
+    <span class="cm-var">Result</span></div>
+
+      <div style="margin-top:10px;display:flex;justify-content:flex-end">
+        <button class="btn-sm btn-copy" onclick="copyActiveTab()">📋 Copy Code</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Live Test ──────────────────────────────────────────── -->
+  <div class="api-section">
+    <div class="api-sec-hdr">
+      <h2>⚡ Live API Test</h2>
+      <span class="badge badge-get">GET</span>
+    </div>
+    <div class="api-sec-body">
+      <p style="font-size:.8rem;color:#aaa;margin:0 0 14px">Test the API directly from your browser. Enter an application or patent number below.</p>
+      <div class="test-row">
+        <input class="test-input" id="testRef" placeholder="e.g. 17123456  or  US11234567" onkeydown="if(event.key==='Enter')runTest()">
+        <select id="testMode" style="background:#1a1a1a;border:1.5px solid var(--border);border-radius:6px;padding:9px 10px;color:#eee;font-size:.82rem;cursor:pointer">
+          <option value="app">App Number</option>
+          <option value="pat">Patent Number</option>
+        </select>
+        <button class="btn-sm btn-primary" onclick="runTest()">▶ Run</button>
+      </div>
+      <div class="test-status" id="testStatus"></div>
+      <div class="test-result" id="testResult">— Response will appear here —</div>
+    </div>
+  </div>
+
+  <!-- ── Response Fields Reference ─────────────────────────── -->
+  <div class="api-section">
+    <div class="api-sec-hdr">
+      <h2>📄 Response Fields Reference</h2>
+    </div>
+    <div class="api-sec-body">
+      <table class="field-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="field-name">app_num</td><td class="field-type">string</td><td>Application number (formatted)</td></tr>
+          <tr><td class="field-name">patent_num</td><td class="field-type">string</td><td>US patent number</td></tr>
+          <tr><td class="field-name">title</td><td class="field-type">string</td><td>Invention title</td></tr>
+          <tr><td class="field-name">applicant</td><td class="field-type">string</td><td>First applicant name</td></tr>
+          <tr><td class="field-name">filing_date</td><td class="field-type">string (YYYY-MM-DD)</td><td>Application filing date</td></tr>
+          <tr><td class="field-name">grant_date</td><td class="field-type">string (YYYY-MM-DD)</td><td>Patent grant date</td></tr>
+          <tr><td class="field-name">official_pta_days</td><td class="field-type">integer</td><td>USPTO official PTA days awarded</td></tr>
+          <tr><td class="field-name">base_expiration</td><td class="field-type">string (YYYY-MM-DD)</td><td>20-year term expiration (no PTA)</td></tr>
+          <tr><td class="field-name">expiration_with_pta</td><td class="field-type">string (YYYY-MM-DD)</td><td>Expiration after adding PTA days</td></tr>
+          <tr><td class="field-name">td_applied</td><td class="field-type">boolean</td><td>Whether a terminal disclaimer caps the term</td></tr>
+          <tr><td class="field-name">td_cap_date</td><td class="field-type">string / null</td><td>TD cap date (if td_applied = true)</td></tr>
+          <tr><td class="field-name">effective_expiration</td><td class="field-type">string (YYYY-MM-DD)</td><td><strong style="color:var(--gold)">Final effective expiration date</strong></td></tr>
+          <tr><td class="field-name">td_days_forfeited</td><td class="field-type">integer</td><td>PTA days lost due to TD cap</td></tr>
+          <tr><td class="field-name">terminal_disclaimer</td><td class="field-type">object</td><td>Full TD details (detected, raw_tds, parent_apps…)</td></tr>
+          <tr><td class="field-name">maintenance_fees</td><td class="field-type">array</td><td>Maintenance fee windows (open, close, grace period)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Notes ─────────────────────────────────────────────── -->
+  <div style="background:rgba(197,160,89,.06);border:1px solid rgba(197,160,89,.2);border-radius:8px;padding:14px 18px;font-size:.78rem;color:#a08040;line-height:1.7;margin-bottom:28px">
+    <strong>⚠ Notes:</strong> The server uses a self-signed SSL certificate. External tools will need to disable SSL verification or install the certificate.
+    In Python use <code>verify=False</code>; in curl use <code>-k</code>; in Excel Power Query you may need to configure the data source trust settings.
+    The API is only accessible while the EaseIP server is running on this machine.
+  </div>
+
+</div>
+</div>
+
+<!-- Footer -->
+<div class="footer"><span>© 2026 EASEIP PVT LTD · ALL RIGHTS RESERVED</span></div>
+
+</div><!-- /.api-layout -->
+
+<!-- Regenerate Confirm Modal -->
+<div class="modal-overlay" id="regenModal">
+  <div class="modal-box">
+    <h3>⚠ Regenerate API Key?</h3>
+    <p>This will immediately replace the current key. Any connected tools using the old key will stop working and need to be updated.</p>
+    <div class="modal-btns">
+      <button class="btn-sm btn-regen" onclick="doRegenerate()" style="padding:9px 20px">Yes, Regenerate</button>
+      <button class="btn-sm btn-toggle" onclick="document.getElementById('regenModal').classList.remove('open')" style="padding:9px 20px">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var keyHidden = true;
+
+function toggleKey() {
+  keyHidden = !keyHidden;
+  var el = document.getElementById('keyDisplay');
+  var btn = document.getElementById('toggleBtn');
+  el.classList.toggle('hidden', keyHidden);
+  btn.textContent = keyHidden ? '👁 Show' : '🙈 Hide';
+}
+
+function copyKey() {
+  var key = document.getElementById('keyVal').textContent.trim();
+  navigator.clipboard.writeText(key).then(function() {
+    var fb = document.getElementById('copyFeedback');
+    fb.style.display = 'inline';
+    setTimeout(function(){ fb.style.display = 'none'; }, 2000);
+  });
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(function(){ btn.textContent = orig; }, 1800);
+  });
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.code-tab').forEach(function(t,i){
+    var tabs = ['curl','python','js','excel'];
+    t.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.code-pane').forEach(function(p){
+    p.classList.toggle('active', p.id === 'tab-' + name);
+  });
+}
+
+function copyActiveTab() {
+  var active = document.querySelector('.code-pane.active');
+  if (active) navigator.clipboard.writeText(active.innerText);
+}
+
+async function doRegenerate() {
+  document.getElementById('regenModal').classList.remove('open');
+  try {
+    var resp = await fetch('/api/settings/regenerate', { method: 'POST' });
+    var data = await resp.json();
+    if (data.ok) {
+      var newKey = data.key;
+      // Update all key displays
+      ['keyVal','keyInHeader','eg-key-curl','eg-key-py','eg-key-js','eg-key-excel'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.textContent = newKey;
+      });
+      // Flash feedback
+      var kd = document.getElementById('keyDisplay');
+      kd.style.borderColor = '#3db870';
+      setTimeout(function(){ kd.style.borderColor = ''; }, 2000);
+    }
+  } catch(e) {
+    alert('Error regenerating key: ' + e.message);
+  }
+}
+
+async function runTest() {
+  var ref = document.getElementById('testRef').value.trim();
+  var mode = document.getElementById('testMode').value;
+  if (!ref) { document.getElementById('testResult').textContent = '⚠ Please enter an application or patent number.'; return; }
+
+  var statusEl = document.getElementById('testStatus');
+  var resultEl = document.getElementById('testResult');
+  statusEl.className = 'test-status status-wait';
+  statusEl.textContent = '⏳ Fetching…';
+  resultEl.textContent = '';
+
+  var url = '/api/expiration/' + encodeURIComponent(ref) + (mode === 'pat' ? '?mode=pat' : '');
+  var t0 = Date.now();
+  try {
+    var resp = await fetch(url);
+    var ms = Date.now() - t0;
+    var data = await resp.json();
+    if (resp.ok) {
+      statusEl.className = 'test-status status-ok';
+      statusEl.textContent = '✓ 200 OK  ·  ' + ms + 'ms';
+    } else {
+      statusEl.className = 'test-status status-err';
+      statusEl.textContent = '✗ ' + resp.status + '  ·  ' + ms + 'ms';
+    }
+    resultEl.textContent = JSON.stringify(data, null, 2);
+  } catch(e) {
+    statusEl.className = 'test-status status-err';
+    statusEl.textContent = '✗ Request failed';
+    resultEl.textContent = e.message;
+  }
+}
+
+// Sync mode selector with ref input heuristic
+document.getElementById('testRef').addEventListener('input', function() {
+  var v = this.value.trim().toUpperCase();
+  if (v.startsWith('US') || /^\d{7,8}B/.test(v)) {
+    document.getElementById('testMode').value = 'pat';
+  } else {
+    document.getElementById('testMode').value = 'app';
+  }
+});
+</script>
+</body>
+</html>

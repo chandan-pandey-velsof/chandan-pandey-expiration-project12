@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manual Calculator — EaseIP Intelligent PTA Calculator</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+html,body{height:100%;margin:0;}
+.calc-layout{display:grid;grid-template-rows:56px 1fr 34px;height:100vh;}
+.calc-body{overflow-y:auto;background:var(--surface);padding:24px;}
+.page-grid{display:grid;grid-template-columns:1fr 380px;gap:20px;max-width:1200px;margin:0 auto;}
+
+/* ── Main card ── */
+.calc-card{background:#fff;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,.07);overflow:hidden;}
+.calc-card-hdr{background:var(--dark);color:var(--gold);padding:13px 20px;
+  font-family:'Rajdhani',sans-serif;font-size:.78rem;font-weight:700;
+  letter-spacing:2px;border-bottom:2px solid var(--gold);
+  display:flex;align-items:center;gap:10px;}
+.calc-body-inner{padding:22px;}
+
+/* ── Input grid ── */
+.input-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+.cf label{display:block;font-size:.68rem;font-weight:700;color:#888;
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;}
+.cf input,.cf select{
+  width:100%;padding:9px 12px;border:1.5px solid #e0dbd0;border-radius:7px;
+  font-family:'IBM Plex Mono',monospace;font-size:.88rem;background:#fafaf8;
+  color:var(--dark);transition:border .18s;
+}
+.cf input:focus,.cf select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,160,89,.1);}
+
+/* ── Result hero ── */
+.result-hero{
+  background:linear-gradient(135deg,#1e2a1e,#152015);
+  border:2px solid var(--green);border-radius:10px;padding:20px;text-align:center;margin-bottom:20px;
+}
+.rh-label{font-size:.62rem;letter-spacing:2px;color:#6be8a0;margin-bottom:5px;font-weight:700;text-transform:uppercase;}
+.rh-date{font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:700;color:#fff;line-height:1;}
+.rh-sub{font-size:.7rem;color:#6be8a0;margin-top:4px;}
+
+/* ── Summary row ── */
+.sum-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.sum-chip{background:#f8f5ee;border:1px solid #e8e3d8;border-radius:8px;padding:11px 14px;text-align:center;}
+.sum-chip .sc-l{font-size:.6rem;color:#bbb;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}
+.sum-chip .sc-v{font-family:'IBM Plex Mono',monospace;font-size:.88rem;font-weight:700;color:var(--dark);}
+
+/* ── Maintenance table ── */
+.maint-card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e8e3d8;margin-bottom:20px;}
+.maint-card-hdr{background:#2d3a2d;color:#6be8a0;padding:10px 16px;font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:2px;border-bottom:1px solid #3a4a3a;}
+.maint-tbl{width:100%;border-collapse:collapse;}
+.maint-tbl th{background:#f5f2eb;color:#666;padding:8px 12px;font-size:.68rem;font-weight:700;letter-spacing:1px;text-align:left;border-bottom:1.5px solid #e8e3d8;}
+.maint-tbl td{padding:10px 12px;border-bottom:1px solid #f2efe8;font-size:.8rem;vertical-align:middle;}
+.maint-tbl tr:last-child td{border-bottom:none;}
+.maint-tbl .grace{color:var(--red);font-weight:700;}
+.maint-tbl .surcharge-note{font-size:.68rem;color:#888;margin-top:2px;}
+.status-paid{display:inline-flex;align-items:center;gap:4px;background:#eaf5ee;color:var(--green);padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;}
+.status-due{display:inline-flex;align-items:center;gap:4px;background:#fdeaea;color:var(--red);padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;}
+.status-upcoming{display:inline-flex;align-items:center;gap:4px;background:#e8f0fb;color:var(--blue);padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;}
+
+/* ── Notes sidebar ── */
+.notes-col{display:flex;flex-direction:column;gap:16px;}
+.note-card{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07);}
+.note-card-hdr{padding:10px 16px;font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:2px;border-bottom:2px solid;}
+.note-hdr-gold{background:var(--dark);color:var(--gold);border-bottom-color:var(--gold);}
+.note-hdr-blue{background:#1a2535;color:#6bb3e8;border-bottom-color:#3a7ec5;}
+.note-hdr-amber{background:#2a1e00;color:#f0c040;border-bottom-color:#c5a059;}
+.note-hdr-green{background:#152015;color:#6be8a0;border-bottom-color:#3d9e6a;}
+.note-body{padding:14px 16px;display:flex;flex-direction:column;gap:9px;}
+.note-item{display:flex;align-items:flex-start;gap:8px;}
+.note-icon{font-size:.9rem;flex-shrink:0;margin-top:1px;}
+.note-text{font-size:.74rem;color:#444;line-height:1.6;}
+.note-text strong{color:var(--dark);}
+.note-cite{font-size:.68rem;color:var(--gold-dim);font-weight:700;font-family:'IBM Plex Mono',monospace;}
+.disclaimer-box{background:#fff8e8;border:1.5px solid rgba(197,160,89,.4);border-radius:8px;padding:12px 14px;}
+.disclaimer-box p{font-size:.73rem;color:#555;line-height:1.6;margin:0 0 6px;}
+.disclaimer-box p:last-child{margin-bottom:0;color:#888;}
+
+/* ── Divider ── */
+.sec-hdr{font-family:'Rajdhani',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:1.5px;
+  color:var(--dark);text-transform:uppercase;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+.sec-hdr::after{content:'';flex:1;height:1px;background:#e8e3d8;}
+
+/* ── Buttons ── */
+.btn-row{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+<div class="calc-layout">
+
+<!-- NAV -->
+<div class="dash-nav">
+  <a class="nav-brand" href="/" title="Home">
+    <div class="nav-logo-box">
+      <img src="{{ url_for('static', filename='logo_white.png') }}" alt="EaseIP"
+           onerror="this.src='{{ url_for('static', filename='logo.png') }}'">
+    </div>
+    <div>
+      <span class="nav-brand-text">EASEIP · Intelligent PTA Calculator</span>
+      <span class="nav-brand-sub">Manual Patent Term Calculator</span>
+    </div>
+  </a>
+  <div class="nav-center">
+    <div class="nav-hint">Patent Term = <span>Filing Date + 20 Years + PTA Days</span></div>
+  </div>
+  <div class="nav-right">
+    <a href="{{ url_for('dashboard') }}" class="nav-menu-btn">← Dashboard</a>
+    <a href="{{ url_for('logout') }}" class="nav-menu-btn">Sign Out</a>
+  </div>
+</div>
+
+<div class="calc-body">
+<div class="page-grid">
+
+  <!-- ═══ LEFT: CALCULATOR ═══ -->
+  <div>
+    <div class="calc-card" style="margin-bottom:16px">
+      <div class="calc-card-hdr">🧮 MANUAL PATENT TERM CALCULATOR</div>
+      <div class="calc-body-inner">
+
+        <div class="input-3col">
+          <div class="cf">
+            <label>Filing Date</label>
+            <input type="date" id="filing" value="{{ filing }}" oninput="calc()">
+          </div>
+          <div class="cf">
+            <label>Grant Date</label>
+            <input type="date" id="grant" value="{{ grant }}" oninput="calc()">
+          </div>
+          <div class="cf">
+            <label>PTA Days</label>
+            <input type="number" id="pta" value="{{ pta }}" min="0" placeholder="0" oninput="calc()">
+          </div>
+        </div>
+
+        <!-- Terminal Disclaimer row -->
+        <div style="background:#fff8e8;border:1.5px solid rgba(197,160,89,.4);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.72rem;font-weight:700;color:#7a4d00;text-transform:uppercase;letter-spacing:.8px">
+              <input type="checkbox" id="tdCheck" onchange="toggleTD();calc()"
+                style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer">
+              Terminal Disclaimer Filed
+            </label>
+            <span style="font-size:.66rem;color:#b09050;margin-left:4px">37 CFR 1.321(c)</span>
+          </div>
+          <div id="tdInputRow" style="display:none">
+            <!-- Step 1: Enter reference app/patent number and auto-lookup its expiry -->
+            <div class="cf" style="margin-bottom:10px">
+              <label style="color:#b09050">Referenced Application / Patent No.
+                <span style="font-weight:400;text-transform:none;letter-spacing:0">— enter to auto-fill expiry date</span>
+              </label>
+              <div style="display:flex;gap:8px;align-items:stretch">
+                <input type="text" id="tdRefPatent"
+                  placeholder="e.g. 17/449,797  or  10,123,456  or  US10123456"
+                  style="flex:1;border-color:rgba(197,160,89,.6);background:#fffdf5;
+                         padding:9px 12px;border:1.5px solid rgba(197,160,89,.6);border-radius:7px;
+                         font-family:'IBM Plex Mono',monospace;font-size:.86rem;color:#333"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();lookupTDRef();}">
+                <button onclick="lookupTDRef()" id="tdLookupBtn"
+                  style="padding:9px 16px;background:var(--gold);color:var(--dark);border:none;
+                         border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;
+                         white-space:nowrap;letter-spacing:.5px;flex-shrink:0">
+                  🔍 Lookup
+                </button>
+              </div>
+              <!-- Lookup status -->
+              <div id="tdLookupStatus" style="display:none;margin-top:6px;font-size:.71rem;
+                   padding:6px 10px;border-radius:5px;border-left:3px solid var(--gold);
+                   background:#fffdf0;color:#7a4d00;line-height:1.5"></div>
+            </div>
+
+            <!-- Step 2: Disclaimed-to date (auto-filled by lookup, or enter manually) -->
+            <div class="cf" style="margin-bottom:6px">
+              <label style="color:#b09050">Disclaimed-to Date
+                <span style="font-weight:400;text-transform:none;letter-spacing:0">(parent's expiration — auto-filled or enter manually)</span>
+              </label>
+              <input type="date" id="tdDate" oninput="calc()"
+                style="border-color:rgba(197,160,89,.6);background:#fffdf5;width:100%;
+                       padding:9px 12px;border:1.5px solid rgba(197,160,89,.6);border-radius:7px;
+                       font-family:'IBM Plex Mono',monospace;font-size:.88rem;color:#333">
+            </div>
+
+            <div id="tdAlert" style="display:none;margin-top:8px;font-size:.73rem;color:#7a4d00;background:#fff3d0;border-radius:6px;padding:7px 10px;border-left:3px solid var(--gold);line-height:1.5"></div>
+          </div>
+          <div style="font-size:.7rem;color:#b09050;line-height:1.5;margin-top:${2}px">
+            When a terminal disclaimer is filed, the effective expiration date is <strong>capped at the parent patent's expiration</strong>
+            — even if PTA would otherwise extend the term further. See 37 CFR 1.321(c).
+          </div>
+        </div>
+
+        <!-- Main result -->
+        <div class="result-hero" id="resultHero">
+          <div class="rh-label" id="resultLabel">Patent Expiration Date (Filing + 20yr + PTA)</div>
+          <div class="rh-date" id="expDate">Enter dates above</div>
+          <div class="rh-sub" id="expSub"></div>
+        </div>
+
+        <!-- TD-adjusted result (shown only when TD is active and changes the date) -->
+        <div id="tdResultCard" style="display:none;background:linear-gradient(135deg,#2a1e00,#1e1500);border:2px solid var(--gold);border-radius:10px;padding:16px;text-align:center;margin-top:-8px;margin-bottom:20px">
+          <div style="font-size:.6rem;letter-spacing:2px;color:var(--gold);margin-bottom:5px;font-weight:700;text-transform:uppercase">Effective Expiration (TD-Capped) — 37 CFR 1.321(c)</div>
+          <div id="tdExpDate" style="font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:700;color:#fff;line-height:1">—</div>
+          <div id="tdExpSub" style="font-size:.7rem;color:var(--gold);margin-top:4px"></div>
+        </div>
+
+        <!-- Summary chips -->
+        <div class="sum-row" id="sumRow" style="display:none">
+          <div class="sum-chip"><div class="sc-l">Filing Date</div><div class="sc-v" id="chipFiling">—</div></div>
+          <div class="sum-chip"><div class="sc-l">Base Expiry (20yr)</div><div class="sc-v" id="chipBase">—</div></div>
+          <div class="sum-chip"><div class="sc-l">PTA Days Added</div><div class="sc-v" id="chipPTA" style="color:var(--green)">+0</div></div>
+          <div class="sum-chip" style="background:#fff8ea;border-color:rgba(197,160,89,.4)"><div class="sc-l" id="chipFinalLabel">Final Expiry</div><div class="sc-v" id="chipFinal" style="color:var(--gold-dim)">—</div></div>
+        </div>
+        <!-- TD chips row (extra row shown only when TD applied) -->
+        <div class="sum-row" id="tdChipRow" style="display:none;margin-top:-12px">
+          <div class="sum-chip" style="background:#fff3f3;border-color:rgba(200,80,80,.3)"><div class="sc-l">Uncapped Expiry</div><div class="sc-v" id="chipUncapped" style="color:#aaa;text-decoration:line-through">—</div></div>
+          <div class="sum-chip" style="background:#fff8e8;border-color:rgba(197,160,89,.5)"><div class="sc-l">TD Cap Date</div><div class="sc-v" id="chipTDCap" style="color:var(--gold-dim)">—</div></div>
+          <div class="sum-chip" style="background:#fff3d0;border-color:rgba(197,160,89,.4)"><div class="sc-l">Days Forfeited</div><div class="sc-v" id="chipForfeited" style="color:#b07030">0</div></div>
+          <div class="sum-chip" style="background:#1e2a1e;border-color:rgba(60,180,100,.4)"><div class="sc-l" style="color:#6be8a0">Effective Expiry</div><div class="sc-v" id="chipEffective" style="color:#6be8a0">—</div></div>
+        </div>
+
+        <div class="btn-row">
+          <a href="{{ url_for('download_excel') }}" class="btn-gold" style="font-size:.82rem;padding:9px 18px;text-decoration:none">📊 Download Excel Calculator</a>
+          <a href="{{ url_for('dashboard') }}" class="btn-ghost" style="font-size:.82rem;padding:8px 16px;text-decoration:none">← Back to Dashboard</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maintenance fees -->
+    <div id="maintCardWrap" style="display:none">
+      <div class="maint-card">
+        <div class="maint-card-hdr">📅 MAINTENANCE FEE SCHEDULE — Utility Patents Only</div>
+        <div style="padding:12px 16px">
+          <table class="maint-tbl">
+            <thead>
+              <tr>
+                <th>Fee</th>
+                <th>Window Opens</th>
+                <th>Window Closes<br><span style="font-weight:400;color:#aaa">(no surcharge)</span></th>
+                <th>Grace Period End<br><span style="font-weight:400;color:var(--red)">+surcharge applies</span></th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="maintBody"></tbody>
+          </table>
+          <div class="alert alert-warning" style="margin-top:10px;font-size:.73rem">
+            <strong>Important:</strong> Maintenance fees cannot be paid before the window opens. Fees paid within the window require no surcharge. Fees paid in the grace period (6 months after window closes) require a surcharge. Failure to pay results in patent expiration. Revival available within 2 years of grace period end with "unintentional" petition.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT: NOTES SIDEBAR ═══ -->
+  <div class="notes-col">
+
+    <!-- What is PTA? -->
+    <div class="note-card">
+      <div class="note-card-hdr note-hdr-gold">⚖️ WHAT IS PATENT TERM ADJUSTMENT?</div>
+      <div class="note-body">
+        <div class="note-item">
+          <span class="note-icon">📌</span>
+          <div class="note-text">
+            <strong>Patent Term Adjustment (PTA)</strong> extends a patent's 20-year term to compensate for delays caused by the USPTO during examination, under <strong>35 U.S.C. 154(b)</strong>.
+            <div class="note-cite">35 USC 154(b) · 37 CFR 1.702–1.705</div>
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">📋</span>
+          <div class="note-text">
+            <strong>Applies to:</strong> Utility and plant patent applications filed on or after <strong>May 29, 2000</strong>. Does NOT apply to design patents.
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">🧮</span>
+          <div class="note-text">
+            <strong>Formula:</strong> Expiration = min(Filing Date + 20 Years + PTA Days, Terminal Disclaimer Cap Date)
+            <div class="note-cite">If no TD: Expiration = Filing + 20yr + PTA</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PTA Categories -->
+    <div class="note-card">
+      <div class="note-card-hdr note-hdr-blue">📊 PTA DELAY CATEGORIES</div>
+      <div class="note-body">
+        <div class="note-item">
+          <span class="note-icon">🅐</span>
+          <div class="note-text">
+            <strong>A-Delay (37 CFR 1.702(a)):</strong> USPTO failed to act within specific timeframes — 14-month first OA, 4-month responses, 4-month issue after NOA.
+            <div class="note-cite">37 CFR 1.702(a)(1)–(3)</div>
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">🅑</span>
+          <div class="note-text">
+            <strong>B-Delay (37 CFR 1.702(b)):</strong> USPTO failed to issue the patent within 3 years of filing (stops at first RCE).
+            <div class="note-cite">37 CFR 1.702(b)</div>
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">🅒</span>
+          <div class="note-text">
+            <strong>C-Delay (37 CFR 1.702(c)–(e)):</strong> Secrecy order, interference/derivation proceeding, or successful appellate review.
+            <div class="note-cite">37 CFR 1.702(c)(d)(e)</div>
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">➖</span>
+          <div class="note-text">
+            <strong>Applicant Delay (37 CFR 1.704):</strong> Delays caused by the applicant (late responses, extensions of time, supplemental replies) are <strong>subtracted</strong> from PTA.
+            <div class="note-cite">37 CFR 1.704(b)(c)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maintenance fee rules -->
+    <div class="note-card">
+      <div class="note-card-hdr note-hdr-amber">💰 MAINTENANCE FEE RULES</div>
+      <div class="note-body">
+        <div class="note-item">
+          <span class="note-icon">📅</span>
+          <div class="note-text">
+            Utility patents filed on/after <strong>May 12, 1980</strong> require three maintenance fees at <strong>3.5, 7.5, and 11.5 years</strong> after grant. Design and plant patents are exempt.
+            <div class="note-cite">35 USC 41(b) · 37 CFR 1.362</div>
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">⏱️</span>
+          <div class="note-text">
+            Each fee has a <strong>6-month payment window</strong> followed by a <strong>6-month grace period</strong> with surcharge. Total window = 12 months per fee.
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">⚠️</span>
+          <div class="note-text">
+            <strong>Failure to pay</strong> causes immediate patent expiration. Revival requires an "unintentional" petition filed within <strong>2 years</strong> of the grace period end.
+          </div>
+        </div>
+        <div class="note-item">
+          <span class="note-icon">🔄</span>
+          <div class="note-text">
+            <strong>Micro/Small entity discounts</strong> apply to maintenance fees. PTA does NOT extend maintenance fee due dates — they remain anchored to the grant date.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer-box">
+      <p><strong>⚠ Educational Tool Only</strong><br>
+      This calculator computes patent term as Filing Date + 20 Years + PTA Days, with optional Terminal Disclaimer cap. It does not account for continuation chain adjustments, multi-level TD chains not entered manually, or official USPTO determinations.</p>
+      <p>Always verify patent term and maintenance fee dates with official USPTO records and consult qualified patent counsel for legal decisions.</p>
+      <p style="margin-top:8px;font-size:.68rem">© 2026 EaseIP Pvt Ltd · Not legal advice · Results are estimates only</p>
+    </div>
+
+  </div><!-- /notes-col -->
+</div><!-- /page-grid -->
+</div><!-- /calc-body -->
+
+<footer class="footer">© 2026 EaseIP Pvt Ltd. All Rights Reserved. · Intelligent PTA Calculator</footer>
+</div>
+
+<script>
+function fmt(d) {
+  if (!d || isNaN(d.getTime())) return '—';
+  return (d.getMonth()+1).toString().padStart(2,'0') + '/' + d.getDate().toString().padStart(2,'0') + '/' + d.getFullYear();
+}
+function today() { return new Date(); }
+
+function toggleTD() {
+  const checked = document.getElementById('tdCheck').checked;
+  document.getElementById('tdInputRow').style.display = checked ? 'block' : 'none';
+  if (!checked) {
+    // Clear lookup status when TD is unchecked
+    document.getElementById('tdLookupStatus').style.display = 'none';
+  }
+}
+
+async function lookupTDRef() {
+  const refVal = document.getElementById('tdRefPatent').value.trim();
+  if (!refVal) return;
+
+  const btn    = document.getElementById('tdLookupBtn');
+  const status = document.getElementById('tdLookupStatus');
+
+  // Loading state
+  btn.disabled    = true;
+  btn.textContent = '⏳ Looking up…';
+  status.style.display  = 'block';
+  status.style.borderColor = 'var(--gold)';
+  status.style.background  = '#fffdf0';
+  status.style.color       = '#7a4d00';
+  status.innerHTML = '⏳ Fetching USPTO record…';
+
+  try {
+    const enc  = encodeURIComponent(refVal);
+    const resp = await fetch('/resolve_expiration/' + enc);
+    const data = await resp.json();
+
+    if (!resp.ok || data.error) {
+      status.style.borderColor = '#c0392b';
+      status.style.background  = '#fff3f3';
+      status.style.color       = '#c0392b';
+      status.innerHTML = `⚠ ${data.error || 'Lookup failed.'}`;
+    } else {
+      // Auto-fill the Disclaimed-to Date
+      const expDate = data.expiration_date;   // "YYYY-MM-DD"
+      if (expDate) {
+        document.getElementById('tdDate').value = expDate;
+        calc();   // recalculate immediately
+      }
+
+      // Format a readable confirmation note
+      const fmt = d => {
+        if (!d) return '—';
+        const [y,m,dd] = d.split('-');
+        return `${m}/${dd}/${y}`;
+      };
+      const label = data.patent_num
+        ? `Patent ${data.patent_num}`
+        : `App ${data.app_num}`;
+      status.style.borderColor = '#27ae60';
+      status.style.background  = '#f0fff4';
+      status.style.color       = '#1a6630';
+      status.innerHTML =
+        `✓ <strong>${label}</strong> · Filed: ${fmt(data.filing_date)} · ` +
+        `Grant: ${fmt(data.grant_date)} · PTA: ${data.total_pta} days · ` +
+        `<strong>Expiration: ${fmt(data.expiration_date)}</strong> — auto-filled above.`;
+    }
+  } catch (e) {
+    status.style.borderColor = '#c0392b';
+    status.style.background  = '#fff3f3';
+    status.style.color       = '#c0392b';
+    status.innerHTML = `⚠ Network error: ${e.message}`;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🔍 Lookup';
+  }
+}
+
+function calc() {
+  const filing = document.getElementById('filing').value;
+  const grant  = document.getElementById('grant').value;
+  const pta    = parseInt(document.getElementById('pta').value) || 0;
+  const tdOn   = document.getElementById('tdCheck').checked;
+  const tdDateVal = document.getElementById('tdDate').value;
+
+  if (!filing) {
+    document.getElementById('expDate').textContent = 'Enter dates above';
+    document.getElementById('expSub').textContent  = '';
+    document.getElementById('sumRow').style.display = 'none';
+    document.getElementById('tdChipRow').style.display = 'none';
+    document.getElementById('tdResultCard').style.display = 'none';
+    document.getElementById('maintCardWrap').style.display = 'none';
+    return;
+  }
+
+  const fd   = new Date(filing + 'T00:00:00');
+  const base = new Date(fd); base.setFullYear(base.getFullYear() + 20);
+  const exp  = new Date(base); exp.setDate(exp.getDate() + pta);   // uncapped
+
+  // ── Terminal Disclaimer cap ──
+  let effectiveExp  = exp;
+  let tdApplied     = false;
+  let tdForfeited   = 0;
+  let tdCap         = null;
+
+  if (tdOn && tdDateVal) {
+    tdCap = new Date(tdDateVal + 'T00:00:00');
+    if (!isNaN(tdCap.getTime())) {
+      if (tdCap < exp) {
+        tdForfeited  = Math.round((exp - tdCap) / (1000*60*60*24));
+        effectiveExp = tdCap;
+        tdApplied    = true;
+      }
+    }
+  }
+
+  // ── Main result hero ──
+  if (tdApplied) {
+    // Show uncapped in hero (struck-through visually via sub text), effective in TD card
+    document.getElementById('resultLabel').textContent = 'Uncapped Expiration (without TD)';
+    document.getElementById('expDate').textContent = fmt(exp);
+    document.getElementById('expDate').style.textDecoration = 'line-through';
+    document.getElementById('expDate').style.color = '#888';
+    document.getElementById('expSub').textContent  = 'Before terminal disclaimer cap';
+    document.getElementById('tdExpDate').textContent = fmt(effectiveExp);
+    document.getElementById('tdExpSub').textContent  = `Capped at parent expiry · ${tdForfeited} PTA days forfeited`;
+    document.getElementById('tdResultCard').style.display = 'block';
+  } else {
+    document.getElementById('resultLabel').textContent = 'Patent Expiration Date (Filing + 20yr + PTA)';
+    document.getElementById('expDate').textContent = fmt(exp);
+    document.getElementById('expDate').style.textDecoration = '';
+    document.getElementById('expDate').style.color = '';
+    document.getElementById('expSub').textContent  = `${fmt(fd)} + 20 years + ${pta} PTA days = ${fmt(exp)}`;
+    document.getElementById('tdResultCard').style.display = 'none';
+  }
+
+  // ── Summary chips ──
+  document.getElementById('sumRow').style.display = 'grid';
+  document.getElementById('chipFiling').textContent   = fmt(fd);
+  document.getElementById('chipBase').textContent     = fmt(base);
+  document.getElementById('chipPTA').textContent      = '+' + pta + 'd';
+  document.getElementById('chipFinalLabel').textContent = tdApplied ? 'Effective Expiry' : 'Final Expiry';
+  document.getElementById('chipFinal').textContent    = fmt(effectiveExp);
+
+  // ── TD chips row ──
+  if (tdApplied) {
+    document.getElementById('tdChipRow').style.display = 'grid';
+    document.getElementById('chipUncapped').textContent  = fmt(exp);
+    document.getElementById('chipTDCap').textContent     = fmt(tdCap);
+    document.getElementById('chipForfeited').textContent = '−' + tdForfeited + 'd';
+    document.getElementById('chipEffective').textContent = fmt(effectiveExp);
+  } else {
+    document.getElementById('tdChipRow').style.display = 'none';
+  }
+
+  // ── TD alert message ──
+  const tdAlert = document.getElementById('tdAlert');
+  if (tdOn && tdDateVal && !tdApplied) {
+    tdAlert.style.display = 'block';
+    tdAlert.innerHTML = `ℹ️ <strong>Note:</strong> The TD cap date (${fmt(tdCap)}) is <em>after</em> the uncapped expiration (${fmt(exp)}), so the terminal disclaimer has no effect in this case.`;
+  } else if (tdOn && !tdDateVal) {
+    tdAlert.style.display = 'block';
+    tdAlert.innerHTML = `📌 Enter the <strong>disclaimed-to date</strong> (the parent patent's expiration date) in the field above.`;
+  } else {
+    tdAlert.style.display = 'none';
+  }
+
+  // ── Maintenance fee table ──
+  if (grant) {
+    const gd   = new Date(grant + 'T00:00:00');
+    const now  = today();
+    const ords = ['1st','2nd','3rd'];
+    const yrs  = [3, 7, 11];
+    const rows = yrs.map((b, i) => {
+      const open  = new Date(gd); open.setFullYear(open.getFullYear() + b);
+      const close = new Date(gd); close.setMonth(close.getMonth() + b * 12 + 6);
+      const grace = new Date(close); grace.setMonth(grace.getMonth() + 6);
+
+      let statusHtml = '';
+      if (now > grace) {
+        statusHtml = `<span class="status-paid">✓ Period Passed</span>`;
+      } else if (now >= open && now <= close) {
+        statusHtml = `<span class="status-due">⚡ Due Now</span>`;
+      } else if (now > close && now <= grace) {
+        statusHtml = `<span class="status-due">⚠ Grace Period</span>`;
+      } else {
+        statusHtml = `<span class="status-upcoming">🔵 Upcoming</span>`;
+      }
+
+      return `<tr>
+        <td style="font-weight:700">${ords[i]}</td>
+        <td class="mono">${fmt(open)}</td>
+        <td class="mono">${fmt(close)}</td>
+        <td><div class="mono grace">${fmt(grace)}</div>
+          <div class="surcharge-note">+surcharge if paid after ${fmt(close)}</div></td>
+        <td>${statusHtml}</td>
+      </tr>`;
+    });
+    document.getElementById('maintBody').innerHTML = rows.join('');
+    document.getElementById('maintCardWrap').style.display = 'block';
+  } else {
+    document.getElementById('maintCardWrap').style.display = 'none';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', calc);
+</script>
+</body>
+</html>
